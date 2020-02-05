@@ -1,0 +1,3 @@
+CLD NB: The state of the decimal flag is uncertain when the CPU is powered up and it is not reset when an interrupt is generated. In both cases you should include an explicit CLD to ensure that the flag is cleared before performing addition or subtraction.
+
+JMP NB

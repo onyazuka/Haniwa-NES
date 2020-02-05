@@ -1,13 +1,18 @@
 #pragma once
 #include <cstdint>
 
+typedef int8_t i8;
 typedef uint8_t u8;
 typedef uint16_t u16;
 typedef uint32_t u32;
 
-typedef u32 Offset;
+typedef i8 RelativeOffset;
+typedef u8 ZeroPageAddress;
+typedef u16 Address;
 
-enum class AdressationMode {
+const int PAGE_SIZE = 0x100;
+
+enum class AddressationMode {
     Implicit,
     Accumulator,
     Immediate,
@@ -22,3 +27,14 @@ enum class AdressationMode {
     IndexedIndirect,
     IndirectIndexed
 };
+
+template<typename T>
+T ROL(T val, u8 sz) {
+    return (val << sz) + (val >> (sizeof(T) * 8 - sz));
+}
+
+template<typename T>
+T ROR(T val, u8 sz) {
+    return (val >> sz) + (val << (sizeof(T) * 8 - sz));
+}
+
