@@ -1,10 +1,20 @@
 #pragma once
 #include <cstdint>
+#include <array>
+#include <vector>
+#include <memory>
 
 typedef int8_t i8;
 typedef uint8_t u8;
 typedef uint16_t u16;
 typedef uint32_t u32;
+template<std::size_t N>
+using Bytes = std::array<u8, N>;
+using DinBytes = std::vector<u8>;
+template<typename T>
+using Uptr = std::unique_ptr<T>;
+template<typename T>
+using Sptr = std::shared_ptr<T>;
 
 typedef i8 RelativeOffset;
 typedef u8 ZeroPageAddress;
@@ -26,6 +36,11 @@ enum class AddressationMode {
     Indirect,
     IndexedIndirect,
     IndirectIndexed
+};
+
+enum class Mirroring {
+    Horizontal,
+    Vertical
 };
 
 template<typename T>
