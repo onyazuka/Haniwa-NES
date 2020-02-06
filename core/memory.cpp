@@ -1,29 +1,38 @@
 #include "memory.hpp"
 
 // - value-initializing memory(init with zeros)
-Memory::Memory()
-    : memory{} {}
+Memory::Memory(MapperInterface& _mapper)
+    : memory{}, mapper{_mapper} {}
 
 u8 Memory::read8(Address offset) {
+    if (isInPRGROM(offset)) return mapper.read8(offset);
     Address fixedAddress = _mirrorAddressFix(offset);
     return memory[fixedAddress];
 }
 
 Memory& Memory::write8(Address offset, u8 val) {
+    if (isInPRGROM(offset)) {
+        mapper.write8(offset, val);
+        return *this;
+    };
     Address fixedAddress = _mirrorAddressFix(offset);
     memory[fixedAddress] = val;
     return *this;
 }
 
 u16 Memory::read16(Address offset) {
+    if (isInPRGROM(offset)) return mapper.read16(offset);
     Address fixedAddress = _mirrorAddressFix(offset);
-    return memory[fixedAddress] + (memory[fixedAddress + 1] << 8);
+    return read16Contigous(memory, fixedAddress);
 }
 
 Memory& Memory::write16(Address offset, u16 val) {
+    if (isInPRGROM(offset)) {
+        mapper.write16(offset, val);
+        return *this;
+    }
     Address fixedAddress = _mirrorAddressFix(offset);
-    memory[fixedAddress] = (u8)(val & 0xff);
-    memory[fixedAddress + 1] = (u8)((val & 0xff00) >> 8);
+    write16Contigous(memory, fixedAddress, val);
     return *this;
 }
 

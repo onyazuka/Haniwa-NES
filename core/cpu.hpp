@@ -10,6 +10,7 @@
 class UnknownOpcodeException {};
 class UnknownAddressModeException {};
 
+const Address ResetVectorAddress = 0xFFFC;
 const Address InterruptVectorAddress = 0xFFFE;
 
 struct Registers {
@@ -79,3 +80,5 @@ private:
 };
 
 Instruction makeInstruction(CPU& cpu, AddressationMode addrMode, Address offset);
+
+std::string getPrettyInstruction(u8 opcode, AddressationMode addrMode, Address curAddress, Instruction instruction);

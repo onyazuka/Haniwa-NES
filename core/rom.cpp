@@ -32,6 +32,7 @@ ROM::ROM(const std::string &fname, Logger* _logger)
     _header = Sptr<AbstractNESHeaderFacade>(new NESHeaderFacade(header));
     // !!! ADD TRAINER CHECK LATER
 
+    _checkMapper();
     _readOther(romIfs);
 }
 
@@ -58,6 +59,14 @@ bool ROM::_checkHeader(const NESHeader& header) {
     if(header.PRGRamSize8Kb) { logger->log(LogLevel::Warning, "PRGRAM is not supported!"); warnings = true; }
     if(header.tvSystem) { logger->log(LogLevel::Warning, "TV system flag is not supported!"); warnings = true; }
     return !warnings;
+}
+
+void ROM::_checkMapper() {
+    u8 mapper = header()->mapper();
+    if(!contains(SupportedMappers, mapper)) {
+        if (logger) logger->log(LogLevel::Error, "Mapper " + std::to_string(mapper) + " is not supported.");
+        throw InvalidROMException{};
+    }
 }
 
 void ROM::_readOther(std::ifstream& romIfs) {

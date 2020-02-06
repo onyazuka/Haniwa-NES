@@ -48,11 +48,12 @@ class ROM {
 public:
     ROM(const std::string& fname, Logger* _logger=nullptr);
     inline const Sptr<AbstractNESHeaderFacade> header() const { return _header; }
-    inline const DinBytes& PRGROM() const { return _PRGROM; }
-    inline const DinBytes& CHRROM() const { return _CHRROM; }
+    inline DinBytes& PRGROM() { return _PRGROM; }
+    inline DinBytes& CHRROM() { return _CHRROM; }
 private:
     NESHeader _makeHeader(std::ifstream& romIfs);
     bool _checkHeader(const NESHeader& header);
+    void _checkMapper();
     void _readOther(std::ifstream& romIfs);
 
     Sptr<AbstractNESHeaderFacade> _header;

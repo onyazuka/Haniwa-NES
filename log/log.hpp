@@ -21,3 +21,4 @@ public:
 private:
     std::ostream& os;
 };
+

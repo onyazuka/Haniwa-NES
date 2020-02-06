@@ -3,6 +3,7 @@
 #include "core/cpu.hpp"
 #include "core/rom.hpp"
 
+
 using namespace std;
 
 int main()
@@ -11,6 +12,8 @@ int main()
     std::cout << (int)ROL((u8)210, 3) << std::endl;
     std::cout << (int)ROR((u8)210, 1) << std::endl;
     std::cout << (int)ROR((u8)210, 3) << std::endl;
+
+    std::cout << numToHexStr(254, 4) << std::endl;
 
     struct s {
         u8 n1 : 1;
@@ -26,6 +29,10 @@ int main()
 
     OstreamLogger* oslogger = new OstreamLogger(std::cout);
     ROM rom("/home/onyazuka/cpp/ProjectsMy/HaniwaNES/roms/Ice Climber (U) .nes", oslogger);
+    Mapper0 mapper(rom, oslogger);
+    Memory memory(mapper);
+    CPU cpu(memory, oslogger);
+    cpu.run();
     delete oslogger;
 
     return 0;

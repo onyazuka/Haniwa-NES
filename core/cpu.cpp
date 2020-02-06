@@ -1,5 +1,7 @@
 #include "cpu.hpp"
 #include <string>
+#include <thread>
+#include <chrono>
 
 // P = 0x34 - interruptions disabled, b-bits are set
 Registers::Registers()
@@ -43,7 +45,9 @@ Instruction makeInstruction(CPU& cpu, AddressationMode addrMode, Address offset)
         cycles = 4;
     }
     else if (addrMode == AddressationMode::Relative) {
-        addr = offset + memory.read8(offset);
+        // -1 because we have already added 1 to offset(opcode size)
+        i8 off = (i8)(memory.read8(offset));
+        addr = offset + 1 + (i8)(memory.read8(offset));
         length = 2;
         cycles = 2;
     }
@@ -92,11 +96,14 @@ Instruction makeInstruction(CPU& cpu, AddressationMode addrMode, Address offset)
 }
 
 CPU::CPU(Memory &_memory, Logger* _logger)
-    : memory{_memory}, logger{_logger} {}
+    : memory{_memory}, logger{_logger} {
+    // initializing PC with address from Reset Vector
+    registers().PC = memory.read16(ResetVectorAddress);
+}
 
 void CPU::run() {
     // PARTY HARD
-    while(true) step();
+    while(true) { step(); std::this_thread::sleep_for(std::chrono::milliseconds(1)); };
 }
 
 void CPU::step() {
@@ -119,6 +126,7 @@ void CPU::step() {
     Registers& regs = registers();
     u16 nextBranchAddress = 0;          // set by branching operation
     u16 nextUnconditionalAddress = 0;   // set by any other operation
+    if(logger) logger->log(LogLevel::Debug, "Executing: " + getPrettyInstruction(opcode, addrMode, offset, instruction));
     switch(opcode) {
     // ADC
     case 0x69: case 0x65: case 0x75: case 0x6D: case 0x7D: case 0x79: case 0x61: case 0x71: {
@@ -367,8 +375,9 @@ void CPU::step() {
     // TYA
     case 0x98: regs.A = regs.Y; regs.setZero(regs.A).setNegative(regs.A); break;
     default:
-        if(logger) logger->log(LogLevel::Error, "Unknown opcode " + std::to_string(opcode));
-
+        // unknown opcode is considered to be NOP
+        if(logger) logger->log(LogLevel::Warning, "Unknown opcode " + std::to_string(opcode) + ". Can it be NOP?");
+        instruction.cycles = 2; break;
     }
     if (nextUnconditionalAddress) regs.PC = nextUnconditionalAddress;
     else if (nextBranchAddress) {
@@ -415,5 +424,34 @@ AddressationMode CPU::_getAddressationModeByOpcode(u8 opcode) {
     default:
         throw UnknownOpcodeException{};
     }
+}
+
+std::string getPrettyInstruction(u8 opcode, AddressationMode addrMode, Address curAddress, Instruction instruction) {
+    std::string hexVal8 = numToHexStr(instruction.val8, 2);
+    std::string hexAddr8 = numToHexStr(instruction.address, 2);
+    std::string hexAddr16 = numToHexStr(instruction.address, 4);
+    std::string curHexAddr8 = numToHexStr(curAddress, 2);;
+    std::string curHexAddr16 = numToHexStr(curAddress, 4);;
+    i16 relAddress = instruction.address - curAddress;
+
+    std::string pretty;
+
+    switch(addrMode) {
+    case AddressationMode::Implicit: pretty = ""; break;
+    case AddressationMode::Accumulator: pretty = "A"; break;
+    case AddressationMode::Immediate: pretty = "#" + hexVal8; break;
+    case AddressationMode::ZeroPage: pretty = "$" + hexAddr8; break;
+    case AddressationMode::ZeroPageX: pretty = "$" + hexAddr8 + ", X"; break;
+    case AddressationMode::ZeroPageY: pretty = "$" + hexAddr8 + ", Y"; break;
+    case AddressationMode::Relative: pretty = "*" + std::string(relAddress > 0 ? "+" : "") + std::to_string(relAddress); break;
+    case AddressationMode::Absolute: pretty = "$" + hexAddr16; break;
+    case AddressationMode::AbsoluteX: pretty = "$" + hexAddr16 + ", X"; break;
+    case AddressationMode::AbsoluteY: pretty = "$" + hexAddr16 + ", Y"; break;
+    case AddressationMode::Indirect: pretty = "($" + curHexAddr16 + ")"; break;
+    case AddressationMode::IndexedIndirect: pretty = "($" + curHexAddr8 + ", X)"; break;
+    case AddressationMode::IndirectIndexed: pretty = "($" + curHexAddr8 + "), Y"; break;
+    }
+
+    return OpcodeToString[opcode] + " " + pretty;
 }
 
