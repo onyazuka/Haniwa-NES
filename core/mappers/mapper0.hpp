@@ -15,15 +15,12 @@
 class Mapper0 : public MapperInterface {
 public:
     Mapper0(ROM& _rom, Logger* logger=nullptr);
-    u8 read8(Address offset);
-    MapperInterface& write8(Address offset, u8 val);
-    u16 read16(Address offset);
-    MapperInterface& write16(Address offset, u16 val);
     bool isCorrect() const;
 private:
-    Address _addressFix(Address address);
+    bool checkAddress(Address address) const;
+    Address addressFix(Address address) const;
+    bool checkCHRAddress(Address address) const;
+    Address addressCHRFix(Address address) const;
 
-    ROM& rom;
     u8 sz16kb;
-    Logger* logger;
 };

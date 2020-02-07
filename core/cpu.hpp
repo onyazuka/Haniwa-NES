@@ -3,6 +3,7 @@
 #include <optional>
 #include <tuple>
 #include <vector>
+#include <chrono>
 #include "common.hpp"
 #include "memory.hpp"
 #include "log/log.hpp"
@@ -12,6 +13,7 @@ class UnknownAddressModeException {};
 
 const Address ResetVectorAddress = 0xFFFC;
 const Address InterruptVectorAddress = 0xFFFE;
+const std::chrono::duration CPUCycle = std::chrono::nanoseconds(558);   // roughly
 
 struct Registers {
     enum class Flag { Carry, Zero, InterruptDisable, Decimal, Overflow, Negative };
@@ -61,7 +63,7 @@ public:
     inline Memory& getMemory() { return memory; }
     inline Registers& registers() { return _registers; }
     void run();
-    void step();
+    u8 step();
 
     // stack operations
     CPU& push(u8 val) { memory.write8((registers().S)--, val); return *this; }

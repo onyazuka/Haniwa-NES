@@ -2,6 +2,7 @@
 #include <string>
 #include <thread>
 #include <chrono>
+#include <iostream>
 
 // P = 0x34 - interruptions disabled, b-bits are set
 Registers::Registers()
@@ -45,8 +46,7 @@ Instruction makeInstruction(CPU& cpu, AddressationMode addrMode, Address offset)
         cycles = 4;
     }
     else if (addrMode == AddressationMode::Relative) {
-        // -1 because we have already added 1 to offset(opcode size)
-        i8 off = (i8)(memory.read8(offset));
+        // +1 because relative offset is calculated from place AFTER the instruction(and any relative addressing instruction has size 2 bytes)
         addr = offset + 1 + (i8)(memory.read8(offset));
         length = 2;
         cycles = 2;
@@ -103,10 +103,21 @@ CPU::CPU(Memory &_memory, Logger* _logger)
 
 void CPU::run() {
     // PARTY HARD
-    while(true) { step(); std::this_thread::sleep_for(std::chrono::milliseconds(1)); };
+    while(true) {
+        auto start = std::chrono::high_resolution_clock::now();
+        u8 cycles = step();
+        auto end = std::chrono::high_resolution_clock::now();
+        auto elapsed = std::chrono::nanoseconds(end - start);
+        // !!!!!!!!!UNCOMMENT THIS
+        //if(elapsed < CPUCycle) std::this_thread::sleep_for(CPUCycle - elapsed);
+        //std::cout << "Elapsed: " << std::chrono::nanoseconds(end - start).count() << std::endl;
+        // !!!!!!!!!COMMENT THIS
+        std::this_thread::sleep_for(std::chrono::milliseconds(100));
+    };
 }
 
-void CPU::step() {
+// returns number of cycles instruction elapsed
+u8 CPU::step() {
     Address offset = registers().PC;
     u8 opcode = memory.read8(offset);
     AddressationMode addrMode;
@@ -388,6 +399,7 @@ void CPU::step() {
         if((offset % PAGE_SIZE) != (nextBranchAddress % PAGE_SIZE)) ++instruction.cycles;
     }
     else regs.PC += instruction.length;
+    return instruction.cycles;
 }
 
 // we can parse addressation type by opcode(look http://wiki.nesdev.com/w/index.php/CPU_unofficial_opcodes)

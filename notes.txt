@@ -1,3 +1,4 @@
+[CPU]
 CLD NB: The state of the decimal flag is uncertain when the CPU is powered up and it is not reset when an interrupt is generated. In both cases you should include an explicit CLD to ensure that the flag is cleared before performing addition or subtraction.
 
 JMP NB
@@ -6,3 +7,6 @@ Stack initial state: why is it 0xFD when, according to nes dev wiki, stack alway
 
 WARNINGS!!!:
 	Article "http://www.obelisk.me.uk/6502/addressing.html" has incorrect info about relative addressing: relative offset is always counted from the beginning of the next instruction!!!
+
+[PPU]
+PPUSTATUS($2002) register - should I initialize it with zero, or some other value?

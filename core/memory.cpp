@@ -5,32 +5,30 @@ Memory::Memory(MapperInterface& _mapper)
     : memory{}, mapper{_mapper} {}
 
 u8 Memory::read8(Address offset) {
-    if (isInPRGROM(offset)) return mapper.read8(offset);
+    auto optionalRes = mapper.read8(offset);
+    if(optionalRes) return optionalRes.value();
     Address fixedAddress = _mirrorAddressFix(offset);
     return memory[fixedAddress];
 }
 
 Memory& Memory::write8(Address offset, u8 val) {
-    if (isInPRGROM(offset)) {
-        mapper.write8(offset, val);
-        return *this;
-    };
+    auto optionalRes = mapper.write8(offset, val);
+    if(optionalRes) return *this;
     Address fixedAddress = _mirrorAddressFix(offset);
     memory[fixedAddress] = val;
     return *this;
 }
 
 u16 Memory::read16(Address offset) {
-    if (isInPRGROM(offset)) return mapper.read16(offset);
+    auto optionalRes = mapper.read16(offset);
+    if(optionalRes) return optionalRes.value();
     Address fixedAddress = _mirrorAddressFix(offset);
     return read16Contigous(memory, fixedAddress);
 }
 
 Memory& Memory::write16(Address offset, u16 val) {
-    if (isInPRGROM(offset)) {
-        mapper.write16(offset, val);
-        return *this;
-    }
+    auto optionalRes = mapper.write16(offset, val);
+    if(optionalRes) return *this;
     Address fixedAddress = _mirrorAddressFix(offset);
     write16Contigous(memory, fixedAddress, val);
     return *this;
