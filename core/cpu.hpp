@@ -3,13 +3,18 @@
 #include <optional>
 #include <tuple>
 #include <vector>
+#include <queue>
 #include <chrono>
+#include <functional>
 #include "common.hpp"
 #include "memory.hpp"
+#include "ppu.hpp"
+#include "eventqueue.hpp"
 #include "log/log.hpp"
 
 class UnknownOpcodeException {};
 class UnknownAddressModeException {};
+class UnknownCPUEventException {};
 
 const Address ResetVectorAddress = 0xFFFC;
 const Address InterruptVectorAddress = 0xFFFE;
@@ -60,14 +65,16 @@ struct Instruction {
 
 class CPU {
 public:
-    CPU(Memory& _memory, Logger* _logger=nullptr);
+    CPU(Memory& _memory, PPU& _ppu, EventQueue& _eventQueue, Logger* _logger=nullptr);
     inline Memory& getMemory() { return memory; }
     inline Registers& registers() { return _registers; }
     void run();
     u8 step();
 
 private:
-    void interrupt(InterruptType, Instruction curInstruction);
+    void interrupt(InterruptType, Address nextPC);
+    void emulateCycles(std::function<int(void)> f);
+    void oamDmaWrite();
     // stack operations
     CPU& push(u8 val) { memory.write8((registers().S)--, val); return *this; }
     inline CPU& push(u16 val) { memory.write16((registers().S), val); registers().S -= 2; return *this; }
@@ -76,10 +83,15 @@ private:
     u8 top8() { return memory.read8(registers().S); }
     u16 top16() { return memory.read16(registers().S); }
     AddressationMode _getAddressationModeByOpcode(u8 opcode);
+    void _processEventQueue();
 
     const Address ROMOffset = 0xC000;
     Registers _registers;
     Memory& memory;
+    PPU& ppu;
+    // different parts of NES can initialize different kinds of events: interrputs, OAMDMA write etc. Those events are added in the eventQueue
+    // and processed after competion of current CPU instruction in FIFO order.
+    EventQueue eventQueue;
     Logger* logger;
 };
 

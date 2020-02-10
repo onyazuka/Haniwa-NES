@@ -2,6 +2,7 @@
 #include <optional>
 #include "common.hpp"
 #include "ppumemory.hpp"
+#include "eventqueue.hpp"
 
 struct PPURegisters {
     PPURegisters();
@@ -85,6 +86,9 @@ public:
 
     PPURegistersAccess& writePpudata(u8 val);
     u8 readPpudata() const;
+
+    PPURegistersAccess& writeOamdma(u8 val);
+    inline u8 readOamdma() const { return ppuRegisters.oamdma; }
 private:
     PPU& ppu;
     PPURegisters ppuRegisters;
@@ -101,9 +105,10 @@ public:
     template<typename std::size_t N> using Latches = std::array<bool, N>;
     template<typename std::size_t N> using Counters = std::array<u8, N>;
 
-    PPU(PPUMemory& _memory);
-    std::optional<InterruptType> step();
+    PPU(PPUMemory& _memory, EventQueue& eventQueue);
     inline PPURegistersAccess accessPPURegisters() { return ppuRegisters; }
+    inline auto& getOAM() { return OAM; }
+    std::optional<InterruptType> step();
 
 private:
     void preRender();
@@ -115,6 +120,7 @@ private:
 
     PPURegistersAccess ppuRegisters;
     PPUMemory& memory;
+    EventQueue& eventQueue;
 
     // --- background
     // 15 bits - current VRAM address

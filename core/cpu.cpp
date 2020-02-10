@@ -95,8 +95,8 @@ Instruction makeInstruction(CPU& cpu, AddressationMode addrMode, Address offset)
     return Instruction{memory.read8(addr), memory.read16(addr), addr, length, cycles};
 }
 
-CPU::CPU(Memory &_memory, Logger* _logger)
-    : memory{_memory}, logger{_logger} {
+CPU::CPU(Memory &_memory, PPU& _ppu, EventQueue& _eventQueue, Logger* _logger)
+    : memory{_memory}, ppu{_ppu}, eventQueue{_eventQueue}, logger{_logger} {
     // initializing PC with address from Reset Vector
     registers().PC = memory.read16(ResetVectorAddress);
 }
@@ -104,15 +104,8 @@ CPU::CPU(Memory &_memory, Logger* _logger)
 void CPU::run() {
     // PARTY HARD
     while(true) {
-        auto start = std::chrono::high_resolution_clock::now();
-        u8 cycles = step();
-        auto end = std::chrono::high_resolution_clock::now();
-        auto elapsed = std::chrono::nanoseconds(end - start);
-        // !!!!!!!!!UNCOMMENT THIS
-        //if(elapsed < CPUCycle) std::this_thread::sleep_for(CPUCycle - elapsed);
-        //std::cout << "Elapsed: " << std::chrono::nanoseconds(end - start).count() << std::endl;
-        // !!!!!!!!!COMMENT THIS
-        std::this_thread::sleep_for(std::chrono::milliseconds(100));
+        emulateCycles([this]() { return step(); });
+        _processEventQueue();
     };
 }
 
@@ -192,7 +185,7 @@ u8 CPU::step() {
     case 0x10: if(!regs.negative()) nextBranchAddress = instruction.address; break;
     // BRK
     case 0x00: {
-        interrupt(InterruptType::BRK, instruction);
+        interrupt(InterruptType::BRK, regs.PC + instruction.length);
         instruction.cycles = 7;
         nextUnconditionalAddress = InterruptVectorAddress;
         break;
@@ -437,13 +430,63 @@ AddressationMode CPU::_getAddressationModeByOpcode(u8 opcode) {
     }
 }
 
-void CPU::interrupt(InterruptType intType, Instruction curInstruction) {
+/*
+    Accepts function f, that accepts 0 args and returns the number of cycles it took to emulate it.
+    It should execute approximately the time of cycle * f return value;
+*/
+void CPU::emulateCycles(std::function<int(void)> f) {
+    auto start = std::chrono::high_resolution_clock::now();
+    int cycles = f();
+    auto end = std::chrono::high_resolution_clock::now();
+    auto elapsed = std::chrono::nanoseconds(end - start);
+    // !!!!!!!!!UNCOMMENT THIS
+    //if(elapsed < CPUCycle) std::this_thread::sleep_for(CPUCycle - elapsed);
+    //std::cout << "Elapsed: " << std::chrono::nanoseconds(end - start).count() << std::endl;
+    // !!!!!!!!!COMMENT THIS
+    std::this_thread::sleep_for(std::chrono::milliseconds(100));
+}
+
+void CPU::interrupt(InterruptType intType, Address nextPC) {
     // NMI should be processed
     if(registers().interruptDisable() && intType != InterruptType::NMI) return;
     registers().setBFlag(intType == InterruptType::BRK);    // only BRK sets B flag
-    push((u16)(registers().PC + curInstruction.length)).push(registers().P);
+    push(nextPC).push(registers().P);
     registers().setInterruptDisable(true);
     registers().PC = intType == InterruptType::NMI ? NonMaskableInterruptVectorAddress : InterruptVectorAddress;
+}
+
+void CPU::_processEventQueue() {
+    auto& events = eventQueue.get();
+    while(!events.empty()) {
+        EventType eventType = events.front();
+        events.pop();
+        switch(eventType) {
+        case EventType::InterruptNMI: interrupt(InterruptType::NMI, registers().PC); break;
+        case EventType::OAMDMAWrite: oamDmaWrite(); break;
+        default: {
+            if(logger) logger->log(LogLevel::Error, "CPU::_processEventQueue(): unknown CPU event type " + std::to_string((int)eventType));
+            throw UnknownCPUEventException{};
+        }
+        }
+    }
+}
+
+/*
+    Sequentially writes 256 bytes of data from CPU page $XX00-$XXFF to the internal PPU's OAM memory.
+    It should take exactly 512 CPU cycles.
+*/
+void CPU::oamDmaWrite() {
+    // I hope that nothing bad will happen if I read from OAMDMA
+    u8 page = ppu.accessPPURegisters().readOamdma();
+    auto OAM = ppu.getOAM();
+    for(int i = 0; i < 0x100; ++i) {
+        Address addr = (page << 8) + i;
+        emulateCycles([this, &OAM, i, addr]() {
+            OAM[i] = memory.read8(addr);
+            // each such operation consumes 2 CPU cycles
+            return 2;
+        });
+    }
 }
 
 std::string getPrettyInstruction(u8 opcode, AddressationMode addrMode, Address curAddress, Instruction instruction) {

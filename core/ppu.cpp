@@ -1,5 +1,5 @@
-#include "ppu.hpp"
 #include <cstring>
+#include "ppu.hpp"
 
 PPURegisters::PPURegisters()
     : ppuctrl{0}, ppumask{0}, ppustatus{0}, oamaddr{0}, ppuscroll{0}, ppuaddr{0}, ppudata{0} {}
@@ -84,11 +84,19 @@ PPURegistersAccess& PPURegistersAccess::writePpudata(u8 val) {
 }
 
 u8 PPURegistersAccess::readPpudata() const {
-
+    u8 res = ppu.memory.read(ppu.v & ppu.AccessAddressMask);
+    ppu.v += readPpuctrlVramIncrement() ? 32 : 1;
+    return res;
 }
 
-PPU::PPU(PPUMemory& _memory)
-    : ppuRegisters{*this}, memory{_memory}, v{0}, t{0}, x{0}, w{0}, OAM{}, secondaryOAM{}, spritesShifts8{},
+PPURegistersAccess& PPURegistersAccess::writeOamdma(u8 val) {
+    ppuRegisters.oamdma = val;
+    ppu.eventQueue.get().push(EventType::OAMDMAWrite);
+    return *this;
+}
+
+PPU::PPU(PPUMemory& _memory, EventQueue& _eventQueue)
+    : ppuRegisters{*this}, memory{_memory}, eventQueue{_eventQueue}, v{0}, t{0}, x{0}, w{0}, OAM{}, secondaryOAM{}, spritesShifts8{},
       latches{}, counters{}, frame{0}, scanline{0}, cycle{0} {}
 
 // if some interrupt occure, it will be returned

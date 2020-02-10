@@ -32,9 +32,10 @@ int main()
     ROM rom("/home/onyazuka/cpp/ProjectsMy/HaniwaNES/roms/Ice Climber (U) .nes", oslogger);
     Mapper0 mapper(rom, oslogger);
     PPUMemory ppuMemory{mapper};
-    PPU ppu{ppuMemory};
+    EventQueue eventQueue;
+    PPU ppu{ppuMemory, eventQueue};
     Memory memory(mapper, ppu);
-    CPU cpu(memory, oslogger);
+    CPU cpu(memory, ppu, eventQueue, oslogger);
     cpu.run();
     delete oslogger;
 

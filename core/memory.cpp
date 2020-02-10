@@ -29,15 +29,15 @@ Memory& Memory::write8(Address offset, u8 val) {
     if(isInPPURegisters(offset)) {
         auto ppuregs = ppu.accessPPURegisters();
         switch(offset) {
-        case 0x2000: return ppuregs.writePpuctrl(val);
-        case 0x2001: return ppuregs.writePpumask(val);
-        case 0x2002: return ppuregs.writePpustatus(val);
-        case 0x2003: return ppuregs.writeOamaddr(val);
-        case 0x2004: return ppuregs.writeOamdata(val);
-        case 0x2005: return ppuregs.writePpuscroll(val);
-        case 0x2006: return ppuregs.writePpuaddr(val);
-        case 0x2007: return ppuregs.writePpudata(val);
-        case 0x4014: return ppuregs.writeOamdma(val);
+        case 0x2000: ppuregs.writePpuctrl(val); return *this;
+        case 0x2001: ppuregs.writePpumask(val); return *this;
+        case 0x2002: ppuregs.writePpustatus(val); return *this;
+        case 0x2003: ppuregs.writeOamaddr(val); return *this;
+        case 0x2004: ppuregs.writeOamdata(val); return *this;
+        case 0x2005: ppuregs.writePpuscroll(val); return *this;
+        case 0x2006: ppuregs.writePpuaddr(val); return *this;
+        case 0x2007: ppuregs.writePpudata(val); return *this;
+        case 0x4014: ppuregs.writeOamdma(val); return *this;
         }
     }
     auto optionalRes = mapper.write8(offset, val);
