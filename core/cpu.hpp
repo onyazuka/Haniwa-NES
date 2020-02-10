@@ -13,6 +13,7 @@ class UnknownAddressModeException {};
 
 const Address ResetVectorAddress = 0xFFFC;
 const Address InterruptVectorAddress = 0xFFFE;
+const Address NonMaskableInterruptVectorAddress = 0xFFFA;
 const std::chrono::duration CPUCycle = std::chrono::nanoseconds(558);   // roughly
 
 struct Registers {
@@ -65,6 +66,8 @@ public:
     void run();
     u8 step();
 
+private:
+    void interrupt(InterruptType, Instruction curInstruction);
     // stack operations
     CPU& push(u8 val) { memory.write8((registers().S)--, val); return *this; }
     inline CPU& push(u16 val) { memory.write16((registers().S), val); registers().S -= 2; return *this; }
@@ -72,7 +75,6 @@ public:
     inline CPU& pop16() { (registers().S) += 2; return *this; }
     u8 top8() { return memory.read8(registers().S); }
     u16 top16() { return memory.read16(registers().S); }
-private:
     AddressationMode _getAddressationModeByOpcode(u8 opcode);
 
     const Address ROMOffset = 0xC000;

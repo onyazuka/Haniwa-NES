@@ -1,4 +1,5 @@
 #pragma once
+#include <optional>
 #include "common.hpp"
 
 struct PPURegisters {
@@ -49,7 +50,18 @@ public:
     template<typename std::size_t N> using Shifts8 = std::array<u8, N>;
     template<typename std::size_t N> using Latches = std::array<bool, N>;
     template<typename std::size_t N> using Counters = std::array<u8, N>;
+
+    PPU();
+    std::optional<InterruptType> step();
 private:
+    void preRender();
+    void visibleRender();
+    void postRender();
+    void verticalBlank();
+
+    void setVblank(bool val);
+
+    PPURegisters ppuRegisters;
     // --- background
     // 15 bits - current VRAM address
     // Schema: yyyNNYYYYYXXXXX (y - fine y scroll, N - nametable select(address - $2000), Y - coarse Y scroll, X - coarse X scroll)
@@ -69,4 +81,11 @@ private:
     Shifts8<16> spritesShifts8;
     Latches<8> latches;
     Counters<8> counters;
+
+    // --- private
+    u8 frame;       // cyclic is ok
+    u16 scanline;
+    u16 cycle;      // this scanline cycle
+
+    bool nmiRequest;
 };

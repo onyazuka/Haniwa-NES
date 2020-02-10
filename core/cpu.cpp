@@ -192,8 +192,7 @@ u8 CPU::step() {
     case 0x10: if(!regs.negative()) nextBranchAddress = instruction.address; break;
     // BRK
     case 0x00: {
-        regs.setBFlag(true);
-        push(regs.PC).push(regs.P);
+        interrupt(InterruptType::BRK, instruction);
         instruction.cycles = 7;
         nextUnconditionalAddress = InterruptVectorAddress;
         break;
@@ -436,6 +435,15 @@ AddressationMode CPU::_getAddressationModeByOpcode(u8 opcode) {
     default:
         throw UnknownOpcodeException{};
     }
+}
+
+void CPU::interrupt(InterruptType intType, Instruction curInstruction) {
+    // NMI should be processed
+    if(registers().interruptDisable() && intType != InterruptType::NMI) return;
+    registers().setBFlag(intType == InterruptType::BRK);    // only BRK sets B flag
+    push((u16)(registers().PC + curInstruction.length)).push(registers().P);
+    registers().setInterruptDisable(true);
+    registers().PC = intType == InterruptType::NMI ? NonMaskableInterruptVectorAddress : InterruptVectorAddress;
 }
 
 std::string getPrettyInstruction(u8 opcode, AddressationMode addrMode, Address curAddress, Instruction instruction) {

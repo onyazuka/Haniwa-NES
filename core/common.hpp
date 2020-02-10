@@ -43,6 +43,13 @@ enum class AddressationMode {
     IndirectIndexed
 };
 
+enum class InterruptType {
+    BRK,
+    NMI,
+    IRQ,
+    RESET
+};
+
 enum class Mirroring {
     Horizontal,
     Vertical
