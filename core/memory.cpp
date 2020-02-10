@@ -1,10 +1,24 @@
 #include "memory.hpp"
 
 // - value-initializing memory(init with zeros)
-Memory::Memory(MapperInterface& _mapper)
-    : memory{}, mapper{_mapper} {}
+Memory::Memory(MapperInterface& _mapper, PPU& _ppu)
+    : memory{}, mapper{_mapper}, ppu{_ppu} {}
 
 u8 Memory::read8(Address offset) {
+    if(isInPPURegisters(offset)) {
+        auto ppuregs = ppu.accessPPURegisters();
+        switch(offset) {
+        case 0x2000: return ppuregs.readPpuctrl();
+        case 0x2001: return ppuregs.readPpumask();
+        case 0x2002: return ppuregs.readPpustatus();
+        case 0x2003: return ppuregs.readOamaddr();
+        case 0x2004: return ppuregs.readOamdata();
+        case 0x2005: return ppuregs.readPpuscroll();
+        case 0x2006: return ppuregs.readPpuaddr();
+        case 0x2007: return ppuregs.readPpudata();
+        case 0x4014: return ppuregs.readOamdma();
+        }
+    }
     auto optionalRes = mapper.read8(offset);
     if(optionalRes) return optionalRes.value();
     Address fixedAddress = _mirrorAddressFix(offset);
@@ -12,6 +26,20 @@ u8 Memory::read8(Address offset) {
 }
 
 Memory& Memory::write8(Address offset, u8 val) {
+    if(isInPPURegisters(offset)) {
+        auto ppuregs = ppu.accessPPURegisters();
+        switch(offset) {
+        case 0x2000: return ppuregs.writePpuctrl(val);
+        case 0x2001: return ppuregs.writePpumask(val);
+        case 0x2002: return ppuregs.writePpustatus(val);
+        case 0x2003: return ppuregs.writeOamaddr(val);
+        case 0x2004: return ppuregs.writeOamdata(val);
+        case 0x2005: return ppuregs.writePpuscroll(val);
+        case 0x2006: return ppuregs.writePpuaddr(val);
+        case 0x2007: return ppuregs.writePpudata(val);
+        case 0x4014: return ppuregs.writeOamdma(val);
+        }
+    }
     auto optionalRes = mapper.write8(offset, val);
     if(optionalRes) return *this;
     Address fixedAddress = _mirrorAddressFix(offset);
@@ -46,4 +74,8 @@ Address Memory::_mirrorAddressFix(Address address) {
     else if(address >= 0x2000 && address < 0x4000) return 0x2000 + address % 8;
     // no mirroring
     else return address;
+}
+
+bool isInPPURegisters(Address address) {
+    return (address >= 0x2000 && address <= 0x2007) || (address == 0x4014);
 }

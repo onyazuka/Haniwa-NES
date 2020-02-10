@@ -1,6 +1,7 @@
 #include <iostream>
 #include <cstring>
 #include "core/cpu.hpp"
+#include "core/ppu.hpp"
 #include "core/rom.hpp"
 
 
@@ -30,7 +31,9 @@ int main()
     OstreamLogger* oslogger = new OstreamLogger(std::cout);
     ROM rom("/home/onyazuka/cpp/ProjectsMy/HaniwaNES/roms/Ice Climber (U) .nes", oslogger);
     Mapper0 mapper(rom, oslogger);
-    Memory memory(mapper);
+    PPUMemory ppuMemory{mapper};
+    PPU ppu{ppuMemory};
+    Memory memory(mapper, ppu);
     CPU cpu(memory, oslogger);
     cpu.run();
     delete oslogger;

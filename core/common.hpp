@@ -56,6 +56,12 @@ enum class Mirroring {
 };
 
 template<typename T>
+struct InvalidRangeException{
+    T min;
+    T max;
+};
+
+template<typename T>
 T ROL(T val, u8 sz) {
     return (val << sz) + (val >> (sizeof(T) * 8 - sz));
 }
@@ -84,3 +90,26 @@ void write16Contigous(Cont& bytes, Address offset, u16 val) {
 
 bool isInPRGROM(Address address);
 
+template<typename T>
+T& setBit(T& val, u8 num) {
+    val |= (1 << num);
+    return val;
+}
+
+template<typename T>
+T& setBits(T& val, std::vector<u8> bits) {
+    for(auto bitNum : bits) setBit(val, bitNum);
+    return val;
+}
+
+template<typename T>
+T& clearBit(T& val, u8 num) {
+    val &= ~((T)(1 << num));
+    return val;
+}
+
+template<typename T>
+T& clearBits(T& val, std::vector<u8> bits) {
+    for(auto bitNum : bits) clearBit(val, bitNum);
+    return val;
+}

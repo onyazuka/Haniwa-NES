@@ -10,3 +10,4 @@ WARNINGS!!!:
 
 [PPU]
 PPUSTATUS($2002) register - should I initialize it with zero, or some other value?
+PPUDATA read (post-fetch) - (read "The PPUDATA read buffer (post-fetch)" section at "http://wiki.nesdev.com/w/index.php/PPU_registers") - should ppu store an internal vram buffer?
