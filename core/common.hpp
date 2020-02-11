@@ -113,3 +113,5 @@ T& clearBits(T& val, std::vector<u8> bits) {
     for(auto bitNum : bits) clearBit(val, bitNum);
     return val;
 }
+
+u8 reverseByte(u8 b);

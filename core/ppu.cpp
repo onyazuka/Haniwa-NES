@@ -97,12 +97,12 @@ PPURegistersAccess& PPURegistersAccess::writeOamdma(u8 val) {
 
 PPU::PPU(PPUMemory& _memory, EventQueue& _eventQueue, Logger* _logger)
     : ppuRegisters{*this}, memory{_memory}, eventQueue{_eventQueue}, logger{_logger}, v{0}, t{0}, x{0}, w{0}, OAM{},
-      secondaryOAM{}, spritesShifts8{}, latches{}, counters{}, frame{0}, scanline{-1}, cycle{0}, _image{} {}
+      secondaryOAM{}, spritesPatternDataShifts8{}, spriteAttributeBytes{}, spriteXCounters{}, frame{0}, scanline{-1}, cycle{0}, _image{} {}
 
 void PPU::step() {
     switch(scanline) {
-        case -1: preRender(); break;
-        case 0 ... 239: visibleRender(); pixelRender(); break;
+        case -1: preRender(); pixelRender(); break;
+        case 0 ... 239: visibleRender(); pixelRender(); drawPixel(); break;
         case 240: postRender(); break;
         case 241 ... 260: verticalBlank(); break;
     }
@@ -122,7 +122,59 @@ void PPU::step() {
 }
 
 void PPU::drawPixel() {
+    // get background pixel
+    // keeping in mind fine x scroll
+    static u16 shiftMask16 = 0b1000000000000000 >> x;
+    static u8  shiftMask8  = 0b10000000 >> x;
+    // to make 0 or 1
+    u8 unshiftSize = 7 - x;
+    u8 bckgPaletteInnerIndex = (((patternDataShifts16[0] & shiftMask16) >> unshiftSize) << 1) | ((patternDataShifts16[1] & shiftMask16) >> unshiftSize);
+    u8 bckgPaletteNumber = (((attrDataShifts8[0] & shiftMask8) >> unshiftSize) << 1) | ((attrDataShifts8[1] & shiftMask8) >> unshiftSize);
+    Address bckgPaletteAddress = 0x3F00 + (bckgPaletteNumber << 2) + bckgPaletteInnerIndex;
+    u32 bckgColor = Palette[memory.read(bckgPaletteAddress)];
+    u32 spriteColor;
+    bool bckgTransparent = bckgPaletteAddress == 0x3F00;
+    bool spriteTransparent = true;
+    u8 spritePriority;
+    // get sprite pixel
+    for(auto i = 0; i < spriteXCounters.size(); ++i) {
+        // sprite is active
+        if (spriteXCounters[i] == 0) {
+            // has some data
+            if (spritesPatternDataShifts8[i * 2] != 0 && spritesPatternDataShifts8[i * 2 + 1] != 0) {
+                u8 spritePaletteInnerIndex = (spritesPatternDataShifts8[i * 2] << 1) + spritesPatternDataShifts8[i * 2 + 1];
+                u8 spritePaletteNumber = spriteAttributeBytes[i] & 0b11;
+                Address spritePaletteAddress = 0x3F10 + (spritePaletteNumber << 2) + spritePaletteInnerIndex;
+                spriteTransparent = (spritePaletteAddress == 0x3F10);
+                spriteColor = Palette[memory.read(spritePaletteAddress)];
+                spritePriority = (spriteAttributeBytes[i] & 0b00100000) >> 5;
+                // shifting
+                spritesPatternDataShifts8[i * 2] <<= 1;
+                spritesPatternDataShifts8[i * 2 + 1] <<= 1;
+            }
+        }
+        else --spriteXCounters[i];
+    }
+    // deciding which pixel to draw
+    _image[]
 
+    // shifty shifts
+    patternDataShifts16[0] <<= 1;
+    patternDataShifts16[1] <<= 1;
+    attrDataShifts8[0] <<= 1;
+    attrDataShifts8[1] <<= 1;
+    // setting lower attribute bit from appropriate latch
+    attrDataShifts8[0] |= attrDataLatches[0];
+    attrDataShifts8[1] |= attrDataLatches[1];
+}
+
+u32 PPU::colorMultiplexer(bool bckgTransparent, u32 bckgColor, bool spriteTransparent, u32 spriteColor, u8 spritePriority) {
+    if(bckgTransparent && spriteTransparent) return bckgColor;
+    if(bckgTransparent && !spriteTransparent) return spriteColor;
+    if(!bckgTransparent && spriteTransparent) return bckgColor;
+    // !bckgTransparent && !spriteTransparent
+    if(spritePriority == 0) return spriteColor; // 0 means in front of background
+    else return bckgColor;
 }
 
 void PPU::preRender() {
@@ -146,7 +198,7 @@ void PPU::preRender() {
     }
     // updating shifters
     if(cycle == 329 || cycle == 337) {
-        _renderInternalFedToShiftRegisters();
+        _renderInternalFedRegisters();
     }
     // cycle 340 can be skipped(in 'step' function)
     // unknown NT fetches
@@ -160,24 +212,22 @@ void PPU::visibleRender() {
     case 0: return;
     case 1 ... 256:
         _renderInternalFetchByte();
-        drawPixel();
         break;
     case 257:
         _restoreXScrollFromT();
         // DON'T NEED BREAK HERE
     case 258 ... 320:
-
+        // all work is done in pixel evaluate for those cycles
         break;
     case 321 ... 336:
         _renderInternalFetchByte();
-        drawPixel();
         break;
     case 337 ... 340:
         _renderInternalUnknownNTFetches();
         break;
     }
     if(((cycle >= 1) && (cycle <= 257) && ((cycle - 1 % 8) == 0)) || (cycle == 329 || cycle == 337) ) {
-        _renderInternalFedToShiftRegisters();
+        _renderInternalFedRegisters();
     }
 }
 
@@ -203,8 +253,7 @@ void PPU::pixelRender() {
     case 257 ... 320: _spriteEvaluateFetchData();
     default: return;
     }
-
-    if()
+    if((cycle >= 265 && cycle <= 321) && (((cycle - 1) % 8) == 0)) _spriteEvaluateFedData();
 }
 
 Address PPU::_getTileAddress() {
@@ -224,10 +273,21 @@ Address PPU::_getPatternLower(u8 index) {
 }
 
 Address PPU::_getPatternLowerOAM(u8 index) {
+    u8 spriteIndex = (cycle - 257) / 8;
+    bool flipVertical = secondaryOAM[spriteIndex * 4 + 2] & 0b10000000;
     // 8x8 sprites
-    if (ppuRegisters.readPpuctrlSpriteSize() == 0) return _getPatternLower(index);
+    if (ppuRegisters.readPpuctrlSpriteSize() == 0) {
+        // vertical flip can be described as reverse of current fine y scroll
+        u8 fineYScroll = secondaryOAM[spriteIndex * 4] & 0b111;
+        if (flipVertical) fineYScroll = ~fineYScroll;
+        return ((ppuRegisters.readPpuctrlBckgPTAddr() * 0x1000) | (index * 16)) + fineYScroll;
+    }
     // 8x16 sprites
-    else return ((index & 1) * 0x1000) | (((index & 0b11111110) >> 1) * 16) + ((v & 0b111000000000000) >> 12);
+    else {
+        u8 fineYScroll = secondaryOAM[spriteIndex * 4] & 0b1111;
+        if (flipVertical) fineYScroll = ~fineYScroll;
+        return ((index & 1) * 0x1000) | (((index & 0b11111110) >> 1) * 16) + secondaryOAM[spriteIndex * 4];
+    }
 }
 
 // coarse x is incremented when next tile is reached
@@ -288,12 +348,12 @@ void PPU::_renderInternalFetchByte() {
 }
 
 // adding pattern table byte and attribute table byte to appropriate shift registers
-void PPU::_renderInternalFedToShiftRegisters() {
-    // storing pattern table bytes in upper 8 bits of each shift register(higher byte in reg[0])
-    patternDataShifts16[0] ^= (patternDataShifts16[0] & 0xFF00);
-    patternDataShifts16[0] |= (highBgByte << 8);
-    patternDataShifts16[1] ^= (patternDataShifts16[1] & 0xFF00);
-    patternDataShifts16[1] |= (lowBgByte << 8);
+void PPU::_renderInternalFedRegisters() {
+    // storing pattern table bytes in LOWER 8 bits of each shift register(higher byte in reg[0])
+    patternDataShifts16[0] ^= (patternDataShifts16[0] & 0x00FF);
+    patternDataShifts16[0] |= highBgByte;
+    patternDataShifts16[1] ^= (patternDataShifts16[1] & 0x00FF);
+    patternDataShifts16[1] |= lowBgByte;
     // storing attribute table data in shifts(8 sequential pixel will have the same attribute table data)
     attrDataShifts8[0] = attrDataLatches[0] == 1 ? 0xFF : 0x00;
     attrDataShifts8[1] = attrDataLatches[1] == 1 ? 0xFF : 0x00;
@@ -356,7 +416,7 @@ void PPU::_spriteEvaluate() {
     }
 }
 
-// filling sprite shift registers, latches and counters
+// fetching data and writing it to the temporary registers
 void PPU::_spriteEvaluateFetchData() {
     // to track 8x16 sprite's second parts
     static bool read8x16Occured = false;
@@ -387,4 +447,14 @@ void PPU::_spriteEvaluateFetchData() {
         spriteHighPatternByte = memory.read(spriteLowPatternByte + 8);
         break;
     }
+}
+
+// filling sprite shift registers, latches and counters
+void PPU::_spriteEvaluateFedData() {
+    u8 spriteIndex = (cycle - 265) / 8;
+    u8 flipHorizontal = secondaryOAM[spriteIndex * 4 + 2] & 0b01000000;
+    spritesPatternDataShifts8[spriteIndex * 2] = flipHorizontal ? reverseByte(spriteHighPatternByte) : spriteHighPatternByte;
+    spritesPatternDataShifts8[spriteIndex * 2 + 1] = flipHorizontal ? reverseByte(spriteLowPatternByte) : spriteLowPatternByte;
+    spriteAttributeBytes[spriteIndex] = secondaryOAM[spriteIndex * 4 + 2];
+    spriteXCounters[spriteIndex] = secondaryOAM[spriteIndex * 4 + 3];
 }

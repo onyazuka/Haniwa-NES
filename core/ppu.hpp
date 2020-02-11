@@ -104,30 +104,45 @@ public:
     template<typename std::size_t N> using Shifts8 = std::array<u8, N>;
     template<typename std::size_t N> using Latches = std::array<bool, N>;
     template<typename std::size_t N> using Counters = std::array<u8, N>;
+    template<typename std::size_t N> using Bytes = std::array<u8, N>;
 
-    PPU(PPUMemory& _memory, EventQueue& eventQueue);
+    PPU(PPUMemory& _memory, EventQueue& eventQueue, Logger* logger = nullptr);
     inline PPURegistersAccess accessPPURegisters() { return ppuRegisters; }
     inline auto& getOAM() { return OAM; }
     void step();
 
 private:
+    void drawPixel();
+    u32 colorMultiplexer(bool bckgTransparent, u32 bckgColor, bool spriteTransparent, u32 spriteColor, u8 spritePriority);
     void preRender();
     void visibleRender();
     void postRender();
     void verticalBlank();
+    void pixelRender();
 
     void setVblank(bool val);
 
     Address _getTileAddress();
     Address _getAttributeAddress();
-    Address _getBckgLower(u8 index);
+    Address _getPatternLower(u8 index);
+    Address _getPatternLowerOAM(u8 index);
+
     void _coarseXIncrement();
-    void _xIncrement();
     void _yIncrement();
+    void _restoreXScrollFromT();
+    void _restoreYScrollFromT();
+    void _renderInternalFetchByte();
+    void _renderInternalFedRegisters();
+    void _renderInternalUnknownNTFetches();
+    void _spriteEvaluateClearSecondaryOAM();
+    void _spriteEvaluate();
+    void _spriteEvaluateFetchData();
+    void _spriteEvaluateFedData();
 
     PPURegistersAccess ppuRegisters;
     PPUMemory& memory;
     EventQueue& eventQueue;
+    Logger* logger;
 
     // --- background
     // 15 bits - current VRAM address
@@ -139,20 +154,34 @@ private:
     u8 x;
     // 1 bit - first or second write toggle
     u8 w;
-    Shifts16<2> bckgShifts16;
-    Shifts8<2> bckgShifts8;
+    Shifts16<2> patternDataShifts16;
+    // shifts store n - 1 tile's data, and latches - n tile's data
+    Shifts8<2> attrDataShifts8;
+    Latches<2> attrDataLatches;
+
+    // background latches
+    u8 ntByte;
+    u8 attrByte;
+    u8 lowBgByte;
+    u8 highBgByte;
     // --- sprites
     std::array<u8, 0x100> OAM;
     std::array<u8, 0x20> secondaryOAM;
-    Shifts8<16> spritesShifts8;
-    Latches<8> latches;
-    Counters<8> counters;
+
+    Shifts8<16> spritesPatternDataShifts8;
+    Bytes<8> spriteAttributeBytes;
+    Counters<8> spriteXCounters;
+
+    u8 spriteLowPatternByte;
+    u8 spriteHighPatternByte;
 
     // --- private
     u8 frame;       // cyclic is ok
     u16 scanline;
     u16 cycle;      // this scanline cycle
 
-    // image
-    std::array<std::array<u8, 256>, 240> _image;
+    // image(in rgb)
+    std::array<u32, 256 * 240> _image;
+    // storing drawn sprites priorities here to use it if background at this pixel will be drawn later
+    std::array<u32, 256 * 240> _spritePriorities;
 };
