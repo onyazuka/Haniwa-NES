@@ -11,3 +11,9 @@ WARNINGS!!!:
 [PPU]
 PPUSTATUS($2002) register - should I initialize it with zero, or some other value?
 PPUDATA read (post-fetch) - (read "The PPUDATA read buffer (post-fetch)" section at "http://wiki.nesdev.com/w/index.php/PPU_registers") - should ppu store an internal vram buffer?
+render enable, render enable leftmost, sprite0hit
+Pre render stage - "During pixels 280 through 304 of this scanline, the vertical scroll bits are reloaded IF RENDERING IS ENABLED. "
+
+Pixel evaluation, clear OAM - return 0xff during clearing when reading 0x2004
+8x16 sprites - sprite evaluation
+first empty sprite - y coord of 63 sprite, than sequential 0xff

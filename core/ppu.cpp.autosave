@@ -97,7 +97,7 @@ PPURegistersAccess& PPURegistersAccess::writeOamdma(u8 val) {
 
 PPU::PPU(PPUMemory& _memory, EventQueue& _eventQueue, Logger* _logger)
     : ppuRegisters{*this}, memory{_memory}, eventQueue{_eventQueue}, logger{_logger}, v{0}, t{0}, x{0}, w{0}, OAM{},
-      secondaryOAM{}, spritesShifts8{}, latches{}, counters{}, frame{0}, scanline{-1}, cycle{0}, _image{} {}
+      secondaryOAM{}, spritesPatternDataShifts8{}, spriteAttributeLatches{}, spriteXCounters{}, frame{0}, scanline{-1}, cycle{0}, _image{} {}
 
 void PPU::step() {
     switch(scanline) {
@@ -204,7 +204,7 @@ void PPU::pixelRender() {
     default: return;
     }
 
-    if()
+    if((cycle >= 265 && cycle <= 321) && (((cycle - 1) % 8) == 0)) _spriteEvaluateFedData();
 }
 
 Address PPU::_getTileAddress() {
@@ -224,10 +224,11 @@ Address PPU::_getPatternLower(u8 index) {
 }
 
 Address PPU::_getPatternLowerOAM(u8 index) {
+    u8 spriteIndex = (cycle - 257) / 8;
     // 8x8 sprites
     if (ppuRegisters.readPpuctrlSpriteSize() == 0) return _getPatternLower(index);
     // 8x16 sprites
-    else return ((index & 1) * 0x1000) | (((index & 0b11111110) >> 1) * 16) + ((v & 0b111000000000000) >> 12);
+    else return ((index & 1) * 0x1000) | (((index & 0b11111110) >> 1) * 16) + secondaryOAM[spriteIndex * 4];
 }
 
 // coarse x is incremented when next tile is reached
@@ -356,7 +357,7 @@ void PPU::_spriteEvaluate() {
     }
 }
 
-// filling sprite shift registers, latches and counters
+// fetching data and writing it to the temporary registers
 void PPU::_spriteEvaluateFetchData() {
     // to track 8x16 sprite's second parts
     static bool read8x16Occured = false;
@@ -387,4 +388,12 @@ void PPU::_spriteEvaluateFetchData() {
         spriteHighPatternByte = memory.read(spriteLowPatternByte + 8);
         break;
     }
+}
+
+// filling sprite shift registers, latches and counters
+void PPU::_spriteEvaluateFedData() {
+    u8 spriteIndex = (cycle - 265) / 8;
+    spritesPatternDataShifts8[spriteIndex * 2] = spriteHighPatternByte;
+    spritesPatternDataShifts8[spriteIndex * 2 + 1] = spriteLowPatternByte;
+    spriteAttributeLatches[spriteIndex] = secondaryOAM[spriteIndex * 4 + 2];
 }
