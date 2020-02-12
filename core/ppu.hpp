@@ -110,18 +110,19 @@ public:
 
     PPU(PPUMemory& _memory, EventQueue& eventQueue, Logger* logger = nullptr);
     inline PPURegistersAccess accessPPURegisters() { return ppuRegisters; }
+    inline auto currentFrame() const { return frame; }
     inline auto& getOAM() { return OAM; }
     void step();
     void emulateCycle();
 
 private:
-    void drawPixel(u8 x, u8 y);
-    u32 colorMultiplexer(bool bckgTransparent, u32 bckgColor, bool spriteTransparent, u32 spriteColor, u8 spritePriority);
     void preRender();
     void visibleRender();
     void postRender();
     void verticalBlank();
     void pixelRender();
+    void drawPixel(u8 x, u8 y);
+    u32 colorMultiplexer(bool bckgTransparent, u32 bckgColor, bool spriteTransparent, u32 spriteColor, u8 spritePriority);
 
     void setVblank(bool val);
 
@@ -185,6 +186,4 @@ private:
 
     // image(in rgb)
     std::array<u32, 256 * 240> _image;
-    // storing drawn sprites priorities here to use it if background at this pixel will be drawn later
-    std::array<u32, 256 * 240> _spritePriorities;
 };

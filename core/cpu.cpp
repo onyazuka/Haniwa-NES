@@ -23,12 +23,12 @@ Instruction makeInstruction(CPU& cpu, AddressationMode addrMode, Address offset)
     const Registers& registers = cpu.registers();
     // cross page can occure when using AbsoluteX, AbsoluteY or IndirectIndexed modes
     bool crossPage = false;
-    if (addrMode == AddressationMode::Implicit || addrMode == AddressationMode::Accumulator) {
-        return Instruction{0,0,0,1,2};
+    if (addrMode == AddressationMode::Implied || addrMode == AddressationMode::Accumulator) {
+        return Instruction{0,0,1,2};
     }
     else if (addrMode == AddressationMode::Immediate) {
         // 0 means we don't have any address
-        return Instruction{memory.read8(offset), memory.read16(offset), 0, 2, 2};
+        return Instruction{memory.read8(offset), 0, 2, 2};
     }
     else if (addrMode == AddressationMode::ZeroPage) {
         addr = memory.read8(offset);
@@ -92,11 +92,11 @@ Instruction makeInstruction(CPU& cpu, AddressationMode addrMode, Address offset)
     else {
         throw UnknownAddressModeException{};
     }
-    return Instruction{memory.read8(addr), memory.read16(addr), addr, length, cycles};
+    return Instruction{memory.read8(addr), addr, length, cycles};
 }
 
 CPU::CPU(Memory &_memory, PPU& _ppu, EventQueue& _eventQueue, Logger* _logger)
-    : memory{_memory}, ppu{_ppu}, eventQueue{_eventQueue}, logger{_logger} {
+    : syncTimePoint{}, memory{_memory}, ppu{_ppu}, eventQueue{_eventQueue}, logger{_logger} {
     // initializing PC with address from Reset Vector
     registers().PC = memory.read16(ResetVectorAddress);
 }
@@ -104,9 +104,11 @@ CPU::CPU(Memory &_memory, PPU& _ppu, EventQueue& _eventQueue, Logger* _logger)
 void CPU::run() {
     // PARTY HARD
     while(true) {
+        auto ppuFrameBefore = ppu.currentFrame();
         emulateCycles([this]() { return step(); });
-
         _processEventQueue();
+        auto ppuFrameAfter = ppu.currentFrame();
+        if(ppuFrameBefore != ppuFrameAfter) _frameSync();
     };
 }
 
@@ -159,9 +161,10 @@ u8 CPU::step() {
         }
         // memory
         else {
-            regs.setCarry(instruction.val8);
-            memory.write8(instruction.address, instruction.val8 << 1);
-            regs.setZero(memory.read8(instruction.address)).setNegative(memory.read8(instruction.address));
+            regs.setCarry(instruction.val8 & 0b10000000);
+            u8 res = instruction.val8 << 1;
+            memory.write8(instruction.address, res);
+            regs.setZero(res).setNegative(res);
             instruction.cycles += 2;
         }
         break;
@@ -217,7 +220,7 @@ u8 CPU::step() {
         break;
     // DEC
     case 0xC6: case 0xD6: case 0xCE: case 0xDE: {
-        u8 res = instruction.val8--;
+        u8 res = instruction.val8 - 1;
         regs.setZero(res).setNegative(res);
         memory.write8(instruction.address, res);
         // not standard cycle count
@@ -227,7 +230,7 @@ u8 CPU::step() {
     // DEX
     case 0xCA: regs.X--; regs.setZero(regs.X).setNegative(regs.X); break;
     // DEY
-    case 0x88: regs.Y--; regs.setZero(regs.Y).setNegative(regs.Y); break;
+    case 0x88: regs.Y--; regs.setZero(regs.Y).setNegative(regs.Y);  break;
     // EOR
     case 0x49: case 0x45: case 0x55: case 0x4D: case 0x5D: case 0x59: case 0x41: case 0x51:
         regs.A ^= instruction.val8;
@@ -235,7 +238,7 @@ u8 CPU::step() {
         break;
     // INC
     case 0xE6: case 0xF6: case 0xEE: case 0xFE: {
-        u8 res = instruction.val8++;
+        u8 res = instruction.val8 + 1;
         regs.setZero(res).setNegative(res);
         memory.write8(instruction.address, res);
         instruction.cycles += 2;
@@ -246,7 +249,10 @@ u8 CPU::step() {
     // INY
     case 0xC8: regs.Y++; regs.setZero(regs.Y).setNegative(regs.Y); break;
     // JMP
-    case 0x4C: case 0x6C: nextUnconditionalAddress = instruction.address; if(opcode == 0x4C) instruction.cycles = 3; break;
+    case 0x4C: case 0x6C:
+        nextUnconditionalAddress = instruction.address;
+        if(opcode == 0x4C) instruction.cycles = 3;
+        break;
     // JSR
     case 0x20:
         // push return address (minus one) on to the stack
@@ -279,9 +285,10 @@ u8 CPU::step() {
         }
         // memory
         else {
+            u8 res = instruction.val8 >> 1;
             regs.setCarry(instruction.val8 & 0b1);
-            memory.write8(instruction.address, instruction.val8 >> 1);
-            regs.setZero(memory.read8(instruction.address)).setNegative(memory.read8(instruction.address));
+            memory.write8(instruction.address, res);
+            regs.setZero(res).setNegative(res);
             instruction.cycles += 2;
         }
         break;
@@ -312,9 +319,10 @@ u8 CPU::step() {
         }
         // memory
         else {
+            u8 res = ROL(instruction.val8, 1);
             regs.setCarry(instruction.val8 & 0b10000000);
-            memory.write8(instruction.address, ROL(instruction.val8, 1));
-            regs.setZero(memory.read8(instruction.address)).setNegative(memory.read8(instruction.address));
+            memory.write8(instruction.address, res);
+            regs.setZero(res).setNegative(res);
             instruction.cycles += 2;
         }
         break;
@@ -329,9 +337,10 @@ u8 CPU::step() {
         }
         // memory
         else {
+            u8 res = ROR(instruction.val8, 1);
             regs.setCarry(instruction.val8 & 1);
-            memory.write8(instruction.address, ROR(instruction.val8, 1));
-            regs.setZero(memory.read8(instruction.address)).setNegative(memory.read8(instruction.address));
+            memory.write8(instruction.address, res);
+            regs.setZero(res).setNegative(res);
             instruction.cycles += 2;
         }
         break;
@@ -403,13 +412,13 @@ AddressationMode CPU::_getAddressationModeByOpcode(u8 opcode) {
     case 0x00:
         if(higher == 0x20) return AddressationMode::Absolute;
         if(higher >= 0x80) return AddressationMode::Immediate;
-        else return AddressationMode::Implicit;
+        else return AddressationMode::Implied;
     case 0x02:
-        if(higher <= 0x60) return AddressationMode::Implicit;
+        if(higher <= 0x60) return AddressationMode::Implied;
         else return AddressationMode::Immediate;
     case 0x01: case 0x03: return AddressationMode::IndexedIndirect;
     case 0x04: case 0x05: case 0x06: case 0x07: return AddressationMode::ZeroPage;
-    case 0x08: case 0x0A: case 0x12: case 0x18: case 0x1A: return AddressationMode::Implicit;
+    case 0x08: case 0x0A: case 0x12: case 0x18: case 0x1A: return AddressationMode::Implied;
     case 0x09: case 0x0B: return AddressationMode::Immediate;
     case 0x0C:
         if (higher == 0x60) return AddressationMode::Indirect;
@@ -436,16 +445,9 @@ AddressationMode CPU::_getAddressationModeByOpcode(u8 opcode) {
     It should execute approximately the time of cycle * f return value;
 */
 void CPU::emulateCycles(std::function<int(void)> f) {
-    auto start = std::chrono::high_resolution_clock::now();
     int cycles = f();
+    // PPU works on 3*CPUFrequency
     for(int i = 0; i < cycles * 3; ++i) ppu.emulateCycle();
-    auto end = std::chrono::high_resolution_clock::now();
-    auto elapsed = std::chrono::nanoseconds(end - start);
-    // !!!!!!!!!UNCOMMENT THIS
-    //if(elapsed < CPUCycle) std::this_thread::sleep_for(CPUCycle - elapsed);
-    //std::cout << "Elapsed: " << std::chrono::nanoseconds(end - start).count() << std::endl;
-    // !!!!!!!!!COMMENT THIS
-    std::this_thread::sleep_for(std::chrono::milliseconds(100));
 }
 
 void CPU::interrupt(InterruptType intType, Address nextPC) {
@@ -455,6 +457,15 @@ void CPU::interrupt(InterruptType intType, Address nextPC) {
     push(nextPC).push(registers().P);
     registers().setInterruptDisable(true);
     registers().PC = intType == InterruptType::NMI ? NonMaskableInterruptVectorAddress : InterruptVectorAddress;
+}
+
+// using a frame as syncrhronization unit
+void CPU::_frameSync() {
+    static const u32 MaxFrameDurationNs = 1000000000 / 60;
+    auto curTimePoint = std::chrono::high_resolution_clock::now();
+    auto sleepDuration = std::chrono::nanoseconds(MaxFrameDurationNs - (curTimePoint - syncTimePoint).count());
+    std::this_thread::sleep_for(std::chrono::nanoseconds(sleepDuration));
+    syncTimePoint = curTimePoint;
 }
 
 void CPU::_processEventQueue() {
@@ -502,7 +513,7 @@ std::string getPrettyInstruction(u8 opcode, AddressationMode addrMode, Address c
     std::string pretty;
 
     switch(addrMode) {
-    case AddressationMode::Implicit: pretty = ""; break;
+    case AddressationMode::Implied: pretty = ""; break;
     case AddressationMode::Accumulator: pretty = "A"; break;
     case AddressationMode::Immediate: pretty = "#" + hexVal8; break;
     case AddressationMode::ZeroPage: pretty = "$" + hexAddr8; break;

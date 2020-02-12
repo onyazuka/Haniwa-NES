@@ -24,3 +24,5 @@ first empty sprite - y coord of 63 sprite, than sequential 0xff
 Shift registers: I decided to load data in the LOWER bits of the shift registers and to rotate it to the RIGHT. So we have current bit as UPPERMOST bit. Is it right?
 
 
+[BUGS]
+Instruction - unnecessary read operations can have influence on some registers(0x2002 bit 7, for example) 

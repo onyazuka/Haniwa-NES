@@ -4,11 +4,15 @@ PPUMemory::PPUMemory(MapperInterface &_mapper, Mirroring _mirroring, Logger* _lo
     : memory{}, mapper{_mapper}, mirroring{_mirroring}, logger{_logger} {}
 
 u8 PPUMemory::read(Address address) {
+    auto optionalRes = mapper.readCHR(address);
+    if (optionalRes) return optionalRes.value();
     address = _fixAddress(address);
     return memory[address];
 }
 
 PPUMemory& PPUMemory::write(Address address, u8 val) {
+    auto optionalRes = mapper.writeCHR(address, val);
+    if (optionalRes) return *this;
     address = _fixAddress(address);
     memory[address] = val;
     return *this;

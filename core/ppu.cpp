@@ -23,9 +23,10 @@ PPURegistersAccess& PPURegistersAccess::writePpuctrlNametableBase(u8 val) {
 }
 
 u8 PPURegistersAccess::readPpustatus() {
+    u8 res = ppuRegisters.ppustatus;
     ppu.w = 0;
     clearBit(ppuRegisters.ppustatus, 7);
-    return ppuRegisters.ppustatus;
+    return res;
 }
 
 PPURegistersAccess& PPURegistersAccess::writeOamdata(u8 val) {
@@ -131,64 +132,6 @@ void PPU::emulateCycle() {
     //std::cout << "(Scanline " << std::to_string(scanline) << ", cycle " << std::to_string(cycle) << ") Elapsed: " << std::chrono::nanoseconds(end - start).count() << std::endl;
 }
 
-void PPU::drawPixel(u8 x, u8 y) {
-    // get background pixel
-    // keeping in mind fine x scroll
-    static u16 shiftMask16 = 0b1000000000000000 >> x;
-    static u8  shiftMask8  = 0b10000000 >> x;
-    // to make 0 or 1
-    u8 unshiftSize = 7 - x;
-    u8 bckgPaletteInnerIndex = (((patternDataShifts16[0] & shiftMask16) >> unshiftSize) << 1) | ((patternDataShifts16[1] & shiftMask16) >> unshiftSize);
-    u8 bckgPaletteNumber = (((attrDataShifts8[0] & shiftMask8) >> unshiftSize) << 1) | ((attrDataShifts8[1] & shiftMask8) >> unshiftSize);
-    Address bckgPaletteAddress = 0x3F00 + (bckgPaletteNumber << 2) + bckgPaletteInnerIndex;
-    u32 bckgColor = Palette[memory.read(bckgPaletteAddress)];
-    u32 spriteColor;
-    bool bckgTransparent = bckgPaletteAddress == 0x3F00;
-    bool spriteTransparent = true;
-    u8 spritePriority;
-    // get sprite pixel
-    for(std::size_t i = 0; i < spriteXCounters.size(); ++i) {
-        // sprite is active
-        if (spriteXCounters[i] == 0) {
-            // has some data
-            if (spritesPatternDataShifts8[i * 2] != 0 && spritesPatternDataShifts8[i * 2 + 1] != 0) {
-                u8 spritePaletteInnerIndex = (spritesPatternDataShifts8[i * 2] << 1) + spritesPatternDataShifts8[i * 2 + 1];
-                u8 spritePaletteNumber = spriteAttributeBytes[i] & 0b11;
-                Address spritePaletteAddress = 0x3F10 + (spritePaletteNumber << 2) + spritePaletteInnerIndex;
-                spriteTransparent = (spritePaletteAddress == 0x3F10);
-                spriteColor = Palette[memory.read(spritePaletteAddress)];
-                spritePriority = (spriteAttributeBytes[i] & 0b00100000) >> 5;
-                // shifting
-                spritesPatternDataShifts8[i * 2] <<= 1;
-                spritesPatternDataShifts8[i * 2 + 1] <<= 1;
-            }
-        }
-        else --spriteXCounters[i];
-        // sprite 0 hit
-        if(i == 0 && !bckgTransparent && !spriteTransparent) ppuRegisters.writePpustatusSprite0Hit(1);
-    }
-    // deciding which pixel to draw
-    _image[y * 256 + x] = colorMultiplexer(bckgTransparent, bckgColor, spriteTransparent, spriteColor, spritePriority);
-
-    // shifty shifts
-    patternDataShifts16[0] <<= 1;
-    patternDataShifts16[1] <<= 1;
-    attrDataShifts8[0] <<= 1;
-    attrDataShifts8[1] <<= 1;
-    // setting lower attribute bit from appropriate latch
-    attrDataShifts8[0] |= attrDataLatches[0];
-    attrDataShifts8[1] |= attrDataLatches[1];
-}
-
-u32 PPU::colorMultiplexer(bool bckgTransparent, u32 bckgColor, bool spriteTransparent, u32 spriteColor, u8 spritePriority) {
-    if(bckgTransparent && spriteTransparent) return bckgColor;
-    if(bckgTransparent && !spriteTransparent) return spriteColor;
-    if(!bckgTransparent && spriteTransparent) return bckgColor;
-    // !bckgTransparent && !spriteTransparent
-    if(spritePriority == 0) return spriteColor; // 0 means in front of background
-    else return bckgColor;
-}
-
 void PPU::preRender() {
     // first cycle is idle
     if (cycle == 0) return;
@@ -269,6 +212,64 @@ void PPU::pixelRender() {
     default: return;
     }
     if((cycle >= 265 && cycle <= 321) && (((cycle - 1) % 8) == 0)) _spriteEvaluateFedData();
+}
+
+void PPU::drawPixel(u8 x, u8 y) {
+    // get background pixel
+    // keeping in mind fine x scroll
+    static u16 shiftMask16 = 0b1000000000000000 >> x;
+    static u8  shiftMask8  = 0b10000000 >> x;
+    // to make 0 or 1
+    u8 unshiftSize = 7 - x;
+    u8 bckgPaletteInnerIndex = (((patternDataShifts16[0] & shiftMask16) >> unshiftSize) << 1) | ((patternDataShifts16[1] & shiftMask16) >> unshiftSize);
+    u8 bckgPaletteNumber = (((attrDataShifts8[0] & shiftMask8) >> unshiftSize) << 1) | ((attrDataShifts8[1] & shiftMask8) >> unshiftSize);
+    Address bckgPaletteAddress = 0x3F00 + (bckgPaletteNumber << 2) + bckgPaletteInnerIndex;
+    u32 bckgColor = Palette[memory.read(bckgPaletteAddress)];
+    u32 spriteColor;
+    bool bckgTransparent = bckgPaletteAddress == 0x3F00;
+    bool spriteTransparent = true;
+    u8 spritePriority;
+    // get sprite pixel
+    for(std::size_t i = 0; i < spriteXCounters.size(); ++i) {
+        // sprite is active
+        if (spriteXCounters[i] == 0) {
+            // has some data
+            if (spritesPatternDataShifts8[i * 2] != 0 && spritesPatternDataShifts8[i * 2 + 1] != 0) {
+                u8 spritePaletteInnerIndex = (spritesPatternDataShifts8[i * 2] << 1) + spritesPatternDataShifts8[i * 2 + 1];
+                u8 spritePaletteNumber = spriteAttributeBytes[i] & 0b11;
+                Address spritePaletteAddress = 0x3F10 + (spritePaletteNumber << 2) + spritePaletteInnerIndex;
+                spriteTransparent = (spritePaletteAddress == 0x3F10);
+                spriteColor = Palette[memory.read(spritePaletteAddress)];
+                spritePriority = (spriteAttributeBytes[i] & 0b00100000) >> 5;
+                // shifting
+                spritesPatternDataShifts8[i * 2] <<= 1;
+                spritesPatternDataShifts8[i * 2 + 1] <<= 1;
+            }
+        }
+        else --spriteXCounters[i];
+        // sprite 0 hit
+        if(i == 0 && !bckgTransparent && !spriteTransparent) ppuRegisters.writePpustatusSprite0Hit(1);
+    }
+    // deciding which pixel to draw
+    _image[y * 256 + x] = colorMultiplexer(bckgTransparent, bckgColor, spriteTransparent, spriteColor, spritePriority);
+
+    // shifty shifts
+    patternDataShifts16[0] <<= 1;
+    patternDataShifts16[1] <<= 1;
+    attrDataShifts8[0] <<= 1;
+    attrDataShifts8[1] <<= 1;
+    // setting lower attribute bit from appropriate latch
+    attrDataShifts8[0] |= attrDataLatches[0];
+    attrDataShifts8[1] |= attrDataLatches[1];
+}
+
+u32 PPU::colorMultiplexer(bool bckgTransparent, u32 bckgColor, bool spriteTransparent, u32 spriteColor, u8 spritePriority) {
+    if(bckgTransparent && spriteTransparent) return bckgColor;
+    if(bckgTransparent && !spriteTransparent) return spriteColor;
+    if(!bckgTransparent && spriteTransparent) return bckgColor;
+    // !bckgTransparent && !spriteTransparent
+    if(spritePriority == 0) return spriteColor; // 0 means in front of background
+    else return bckgColor;
 }
 
 Address PPU::_getTileAddress() {

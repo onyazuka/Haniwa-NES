@@ -28,8 +28,8 @@ int main()
     } ss;
     memset(&ss, 0b11000000, 1);
 
-    OstreamLogger* oslogger = new OstreamLogger(std::cout);
-    ROM rom("/home/onyazuka/cpp/ProjectsMy/HaniwaNES/roms/Ice Climber (U) .nes", oslogger);
+    OstreamLogger* oslogger = new OstreamLogger(std::cout, 0b1111);
+    ROM rom("/home/onyazuka/cpp/ProjectsMy/HaniwaNES/roms/Donkey_Kong.nes", oslogger);
     Mapper0 mapper(rom, oslogger);
     PPUMemory ppuMemory{mapper, rom.header()->mirroring(), oslogger};
     EventQueue eventQueue;

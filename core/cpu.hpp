@@ -57,7 +57,6 @@ struct Registers {
 
 struct Instruction {
     u8 val8;
-    u16 val16;
     Address address;
     u8 length;          // in bytes
     u8 cycles;
@@ -76,22 +75,24 @@ private:
     void emulateCycles(std::function<int(void)> f);
     void oamDmaWrite();
     // stack operations
-    CPU& push(u8 val) { memory.write8((registers().S)--, val); return *this; }
+    inline CPU& push(u8 val) { memory.write8((registers().S)--, val); return *this; }
     inline CPU& push(u16 val) { memory.write16((registers().S), val); registers().S -= 2; return *this; }
     inline CPU& pop8() { (registers().S)++; return *this; }
     inline CPU& pop16() { (registers().S) += 2; return *this; }
-    u8 top8() { return memory.read8(registers().S); }
-    u16 top16() { return memory.read16(registers().S); }
+    u8 top8() { return memory.read8(registers().S + 1); }
+    u16 top16() { return memory.read16(registers().S + 2); }
     AddressationMode _getAddressationModeByOpcode(u8 opcode);
+    void _frameSync();
     void _processEventQueue();
 
     const Address ROMOffset = 0xC000;
+    std::chrono::time_point<std::chrono::high_resolution_clock, std::chrono::nanoseconds> syncTimePoint;
     Registers _registers;
     Memory& memory;
     PPU& ppu;
     // different parts of NES can initialize different kinds of events: interrputs, OAMDMA write etc. Those events are added in the eventQueue
     // and processed after competion of current CPU instruction in FIFO order.
-    EventQueue eventQueue;
+    EventQueue& eventQueue;
     Logger* logger;
 };
 

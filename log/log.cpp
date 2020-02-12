@@ -1,9 +1,13 @@
 #include "log.hpp"
 
-OstreamLogger::OstreamLogger(std::ostream &_os)
-    : os{_os} {}
+/*
+    logLevelMask allows to select log levels to output
+*/
+OstreamLogger::OstreamLogger(std::ostream &_os, u32 _logLevelMask)
+    : os{_os}, logLevelMask{_logLevelMask} {}
 
 void OstreamLogger::log(LogLevel level, const std::string &msg) {
+    if(!((u32)level & logLevelMask)) return;
     switch(level) {
     case LogLevel::Debug:
         os << "DEBUG: " << msg << std::endl;

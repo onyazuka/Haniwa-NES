@@ -28,7 +28,7 @@ const int PAGE_SIZE = 0x100;
 const std::vector<u8> SupportedMappers{0};
 
 enum class AddressationMode {
-    Implicit,
+    Implied,
     Accumulator,
     Immediate,
     ZeroPage,

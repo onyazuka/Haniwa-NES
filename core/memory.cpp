@@ -1,4 +1,5 @@
 #include "memory.hpp"
+#include <iostream>
 
 // - value-initializing memory(init with zeros)
 Memory::Memory(MapperInterface& _mapper, PPU& _ppu)
