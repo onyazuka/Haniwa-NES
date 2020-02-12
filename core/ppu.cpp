@@ -1,4 +1,5 @@
 #include <cstring>
+#include <iostream>
 #include "ppu.hpp"
 
 PPURegisters::PPURegisters()
@@ -102,7 +103,7 @@ PPU::PPU(PPUMemory& _memory, EventQueue& _eventQueue, Logger* _logger)
 void PPU::step() {
     switch(scanline) {
         case -1: preRender(); pixelRender(); break;
-        case 0 ... 239: visibleRender(); pixelRender(); drawPixel(); break;
+        case 0 ... 239: visibleRender(); pixelRender(); break;
         case 240: postRender(); break;
         case 241 ... 260: verticalBlank(); break;
     }
@@ -121,7 +122,16 @@ void PPU::step() {
     }
 }
 
-void PPU::drawPixel() {
+// should last roughly PPUCycle nanoseconds
+void PPU::emulateCycle() {
+    //auto start = std::chrono::high_resolution_clock::now();
+    step();
+    //auto end = std::chrono::high_resolution_clock::now();
+    //auto elapsed = std::chrono::nanoseconds(end - start);
+    //std::cout << "(Scanline " << std::to_string(scanline) << ", cycle " << std::to_string(cycle) << ") Elapsed: " << std::chrono::nanoseconds(end - start).count() << std::endl;
+}
+
+void PPU::drawPixel(u8 x, u8 y) {
     // get background pixel
     // keeping in mind fine x scroll
     static u16 shiftMask16 = 0b1000000000000000 >> x;
@@ -137,7 +147,7 @@ void PPU::drawPixel() {
     bool spriteTransparent = true;
     u8 spritePriority;
     // get sprite pixel
-    for(auto i = 0; i < spriteXCounters.size(); ++i) {
+    for(std::size_t i = 0; i < spriteXCounters.size(); ++i) {
         // sprite is active
         if (spriteXCounters[i] == 0) {
             // has some data
@@ -154,9 +164,11 @@ void PPU::drawPixel() {
             }
         }
         else --spriteXCounters[i];
+        // sprite 0 hit
+        if(i == 0 && !bckgTransparent && !spriteTransparent) ppuRegisters.writePpustatusSprite0Hit(1);
     }
     // deciding which pixel to draw
-    _image[]
+    _image[y * 256 + x] = colorMultiplexer(bckgTransparent, bckgColor, spriteTransparent, spriteColor, spritePriority);
 
     // shifty shifts
     patternDataShifts16[0] <<= 1;
@@ -226,6 +238,9 @@ void PPU::visibleRender() {
         _renderInternalUnknownNTFetches();
         break;
     }
+    if(cycle >= 3 && cycle <= 258) {
+        drawPixel(cycle - 3, scanline);
+    }
     if(((cycle >= 1) && (cycle <= 257) && ((cycle - 1 % 8) == 0)) || (cycle == 329 || cycle == 337) ) {
         _renderInternalFedRegisters();
     }
@@ -248,9 +263,9 @@ void PPU::verticalBlank() {
 void PPU::pixelRender() {
     switch (cycle) {
     case 0: return;
-    case 1 ... 64: _spriteEvaluateClearSecondaryOAM();
-    case 65 ... 256: _spriteEvaluate();
-    case 257 ... 320: _spriteEvaluateFetchData();
+    case 1 ... 64: _spriteEvaluateClearSecondaryOAM(); break;
+    case 65 ... 256: _spriteEvaluate(); break;
+    case 257 ... 320: _spriteEvaluateFetchData(); break;
     default: return;
     }
     if((cycle >= 265 && cycle <= 321) && (((cycle - 1) % 8) == 0)) _spriteEvaluateFedData();
@@ -286,7 +301,7 @@ Address PPU::_getPatternLowerOAM(u8 index) {
     else {
         u8 fineYScroll = secondaryOAM[spriteIndex * 4] & 0b1111;
         if (flipVertical) fineYScroll = ~fineYScroll;
-        return ((index & 1) * 0x1000) | (((index & 0b11111110) >> 1) * 16) + secondaryOAM[spriteIndex * 4];
+        return (((index & 1) * 0x1000) | (((index & 0b11111110) >> 1) * 16)) + secondaryOAM[spriteIndex * 4];
     }
 }
 
@@ -430,7 +445,7 @@ void PPU::_spriteEvaluateFetchData() {
     // garbage reads
     case 1: memory.read(_getTileAddress()); break;
     case 3: memory.read(_getAttributeAddress()); break;
-    case 5:
+    case 5: {
         Address spriteLowPatternAddress = _getPatternLowerOAM(secondaryOAM[spriteIndex * 4 + 1]);
         // 8x8 sprites
         if(ppuRegisters.readPpuctrlSpriteSize() == 0) {
@@ -443,6 +458,7 @@ void PPU::_spriteEvaluateFetchData() {
         }
         spriteLowPatternByte = spriteLowPatternAddress;
         break;
+    }
     case 7:
         spriteHighPatternByte = memory.read(spriteLowPatternByte + 8);
         break;

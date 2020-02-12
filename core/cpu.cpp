@@ -105,6 +105,7 @@ void CPU::run() {
     // PARTY HARD
     while(true) {
         emulateCycles([this]() { return step(); });
+
         _processEventQueue();
     };
 }
@@ -437,6 +438,7 @@ AddressationMode CPU::_getAddressationModeByOpcode(u8 opcode) {
 void CPU::emulateCycles(std::function<int(void)> f) {
     auto start = std::chrono::high_resolution_clock::now();
     int cycles = f();
+    for(int i = 0; i < cycles * 3; ++i) ppu.emulateCycle();
     auto end = std::chrono::high_resolution_clock::now();
     auto elapsed = std::chrono::nanoseconds(end - start);
     // !!!!!!!!!UNCOMMENT THIS

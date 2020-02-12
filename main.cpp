@@ -31,7 +31,7 @@ int main()
     OstreamLogger* oslogger = new OstreamLogger(std::cout);
     ROM rom("/home/onyazuka/cpp/ProjectsMy/HaniwaNES/roms/Ice Climber (U) .nes", oslogger);
     Mapper0 mapper(rom, oslogger);
-    PPUMemory ppuMemory{mapper};
+    PPUMemory ppuMemory{mapper, rom.header()->mirroring(), oslogger};
     EventQueue eventQueue;
     PPU ppu{ppuMemory, eventQueue};
     Memory memory(mapper, ppu);

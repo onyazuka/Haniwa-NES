@@ -55,6 +55,8 @@ enum class Mirroring {
     Vertical
 };
 
+class UnknownMirroringType {};
+
 template<typename T>
 struct InvalidRangeException{
     T min;

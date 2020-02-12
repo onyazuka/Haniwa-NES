@@ -1,5 +1,6 @@
 #pragma once
 #include <optional>
+#include <chrono>
 #include "common.hpp"
 #include "ppumemory.hpp"
 #include "eventqueue.hpp"
@@ -94,6 +95,7 @@ private:
     PPURegisters ppuRegisters;
 };
 
+const std::chrono::duration PPUCycle = std::chrono::nanoseconds(186);   // roughly
 
 class PPU {
 public:
@@ -110,9 +112,10 @@ public:
     inline PPURegistersAccess accessPPURegisters() { return ppuRegisters; }
     inline auto& getOAM() { return OAM; }
     void step();
+    void emulateCycle();
 
 private:
-    void drawPixel();
+    void drawPixel(u8 x, u8 y);
     u32 colorMultiplexer(bool bckgTransparent, u32 bckgColor, bool spriteTransparent, u32 spriteColor, u8 spritePriority);
     void preRender();
     void visibleRender();
@@ -177,7 +180,7 @@ private:
 
     // --- private
     u8 frame;       // cyclic is ok
-    u16 scanline;
+    i16 scanline;
     u16 cycle;      // this scanline cycle
 
     // image(in rgb)

@@ -13,12 +13,15 @@ const std::array<u32, 64> Palette = {
 
 class PPUMemory {
 public:
-    PPUMemory(MapperInterface& _mapper);
+    PPUMemory(MapperInterface& _mapper, Mirroring mirroring, Logger* logger=nullptr);
     u8 read(Address address);
     PPUMemory& write(Address address, u8 val);
 private:
     Address _fixAddress(Address address);
+    Address _applyMirroring(Address address);
 
     std::array<u8, 0x4000> memory;
     MapperInterface& mapper;
+    Mirroring mirroring;
+    Logger* logger;
 };
