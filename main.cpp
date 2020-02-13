@@ -16,6 +16,11 @@ int main()
 
     std::cout << numToHexStr(254, 4) << std::endl;
 
+    std::cout << Palette[15] << std::endl;
+    std::cout << Palette[44] << std::endl;
+    std::cout << Palette[56] << std::endl;
+    std::cout << Palette[18] << std::endl;
+
     struct s {
         u8 n1 : 1;
         u8 n2 : 1;

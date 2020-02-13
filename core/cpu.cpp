@@ -96,7 +96,7 @@ Instruction makeInstruction(CPU& cpu, AddressationMode addrMode, Address offset)
 }
 
 CPU::CPU(Memory &_memory, PPU& _ppu, EventQueue& _eventQueue, Logger* _logger)
-    : syncTimePoint{}, memory{_memory}, ppu{_ppu}, eventQueue{_eventQueue}, logger{_logger} {
+    : syncTimePoint{}, memory{_memory}, ppu{_ppu}, eventQueue{_eventQueue}, logger{_logger}, instructionCounter{0} {
     // initializing PC with address from Reset Vector
     registers().PC = memory.read16(ResetVectorAddress);
 }
@@ -392,7 +392,7 @@ u8 CPU::step() {
         instruction.cycles = 2; break;
     }
     // IT SHOULD BE HERE: trying to not trigger unnecessary read operation
-    if(logger) logger->log(LogLevel::Debug, "Executing: " + getPrettyInstruction(opcode, addrMode, offset, instruction));
+    if(logger) logger->log(LogLevel::Debug, "[" + std::to_string(instructionCounter) + "]:" + getPrettyInstruction(opcode, addrMode, offset, instruction));
     if (nextUnconditionalAddress) regs.PC = nextUnconditionalAddress;
     else if (nextBranchAddress) {
         regs.PC = nextBranchAddress;
@@ -402,6 +402,7 @@ u8 CPU::step() {
         if((offset % PAGE_SIZE) != (nextBranchAddress % PAGE_SIZE)) ++instruction.cycles;
     }
     else regs.PC += instruction.length;
+    instructionCounter++;
     return instruction.cycles;
 }
 
@@ -467,13 +468,11 @@ void CPU::_frameSync() {
     auto sleepDuration = std::chrono::nanoseconds(MaxFrameDurationNs - (curTimePoint - syncTimePoint).count());
     std::this_thread::sleep_for(std::chrono::nanoseconds(sleepDuration));
     syncTimePoint = curTimePoint;
-
-
     // DEBUG
-    /*if(ppu.currentFrame() == 300) {
+    if(ppu.currentFrame() == 30) {
         dumpPixelsToFile(ppu.image(), "/home/onyazuka/pixels");
         std::cout << "DONE\n";
-    }*/
+    }
 }
 
 void CPU::_processEventQueue() {
@@ -499,11 +498,12 @@ void CPU::_processEventQueue() {
 void CPU::oamDmaWrite() {
     // I hope that nothing bad will happen if I read from OAMDMA
     u8 page = ppu.accessPPURegisters().readOamdma();
-    auto OAM = ppu.getOAM();
+    auto& OAM = ppu.getOAM();
+    u8 startOAMAddr = ppu.accessPPURegisters().readOamaddr();
     for(int i = 0; i < 0x100; ++i) {
         Address addr = (page << 8) + i;
-        emulateCycles([this, &OAM, i, addr]() {
-            OAM[i] = memory.read8(addr);
+        emulateCycles([this, &OAM, i, addr, startOAMAddr]() {
+            OAM[startOAMAddr + i] = memory.read8(addr);
             // each such operation consumes 2 CPU cycles
             return 2;
         });

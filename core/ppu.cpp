@@ -30,6 +30,7 @@ u8 PPURegistersAccess::readPpustatus() {
 }
 
 PPURegistersAccess& PPURegistersAccess::writeOamdata(u8 val) {
+    if (ppu.isDataChangeForbidden()) return *this;
     ppu.OAM[ppuRegisters.oamaddr] = val;
     incrementOamaddr();
     return *this;
@@ -75,12 +76,12 @@ PPURegistersAccess& PPURegistersAccess::writePpuaddr(u8 val) {
         ppu.v = ppu.t;
         ppu.w = 0;
     }
+    ppuRegisters.ppuaddr = ppu.v & ppu.AccessAddressMask;
     return *this;
 }
 
 PPURegistersAccess& PPURegistersAccess::writePpudata(u8 val) {
-    // write access is FORBIDDEN during rendering(not in vblank or if rendering enabled). Reading is possible(and, in fact, it is used in some games)
-    if (!(ppuRegisters.ppustatus & 0b10000000) || readPpumaskShowBckg() || readPpumaskShowSprites()) return *this;
+    if (ppu.isDataChangeForbidden()) return *this;
     ppu.memory.write(ppu.v & ppu.AccessAddressMask, val);
     // if ppuctrl 2nd bit is set, incrementing by 32, else by 1
     ppu.v += readPpuctrlVramIncrement() ? 32 : 1;
@@ -88,9 +89,22 @@ PPURegistersAccess& PPURegistersAccess::writePpudata(u8 val) {
 }
 
 u8 PPURegistersAccess::readPpudata() const {
-    u8 res = ppu.memory.read(ppu.v & ppu.AccessAddressMask);
+    // internal buffer
+    static u8 buf;
+    u8 readData = ppu.memory.read(ppu.v & ppu.AccessAddressMask);
     ppu.v += readPpuctrlVramIncrement() ? 32 : 1;
-    return res;
+    // when reading from before palettes, return data from internal buffer, but update it
+    if(ppu.v < 0x3F00) {
+        u8 res = buf;
+        buf = readData;
+        return res;
+    }
+    // reading here works differently - updating buffer AND returning currently read data
+    else {
+        // palette
+        buf = readData;
+        return readData;
+    }
 }
 
 PPURegistersAccess& PPURegistersAccess::writeOamdma(u8 val) {
@@ -187,7 +201,7 @@ void PPU::visibleRender() {
     if(cycle >= 3 && cycle <= 258) {
         drawPixel(cycle - 3, scanline);
     }
-    if(((cycle >= 1) && (cycle <= 257) && ((cycle - 1 % 8) == 0)) || (cycle == 329 || cycle == 337) ) {
+    if(((cycle >= 1) && (cycle <= 257) && (((cycle - 1) % 8) == 0)) || (cycle == 329 || cycle == 337) ) {
         _renderInternalFedRegisters();
     }
 }
@@ -199,7 +213,7 @@ void PPU::postRender() {
 
 // just turning on vblank on cycle number 1(SECOND cycle)
 void PPU::verticalBlank() {
-    if (cycle == 1) {
+    if (scanline == 241 && cycle == 1) {
         ppuRegisters.writePpustatusVblank(1);
         // nmi request will be send after step is complete
         if(ppuRegisters.readPpuctrlVblankNMI()) eventQueue.get().push(EventType::InterruptNMI);
@@ -211,7 +225,8 @@ void PPU::pixelRender() {
     case 0: return;
     case 1 ... 64: _spriteEvaluateClearSecondaryOAM(); break;
     case 65 ... 256: _spriteEvaluate(); break;
-    case 257 ... 320: _spriteEvaluateFetchData(); break;
+    // OAMADDR is set to 0 during those ticks
+    case 257 ... 320: _spriteEvaluateFetchData(); ppuRegisters.writeOamaddr(0); break;
     default: return;
     }
     if((cycle >= 265 && cycle <= 321) && (((cycle - 1) % 8) == 0)) _spriteEvaluateFedData();
@@ -229,26 +244,27 @@ void PPU::drawPixel(u8 xCoord, u8 yCoord) {
     u8 bckgPaletteNumber = (((attrDataShifts8[0] & shiftMask8) >> unshiftSize8) << 1) | ((attrDataShifts8[1] & shiftMask8) >> unshiftSize8);
     Address bckgPaletteAddress = 0x3F00 + (bckgPaletteNumber << 2) + bckgPaletteInnerIndex;
     u32 bckgColor = Palette[memory.read(bckgPaletteAddress)];
-    u32 spriteColor;
+    u32 spriteColor = 0;
     bool bckgTransparent = bckgPaletteAddress == 0x3F00;
     bool spriteTransparent = true;
-    u8 spritePriority;
+    u8 spritePriority = 1;      // behind background
     // get sprite pixel
     for(std::size_t i = 0; i < spriteXCounters.size(); ++i) {
         // sprite is active
         if (spriteXCounters[i] == 0) {
             // has some data
-            if (spritesPatternDataShifts8[i * 2] != 0 && spritesPatternDataShifts8[i * 2 + 1] != 0) {
-                u8 spritePaletteInnerIndex = (spritesPatternDataShifts8[i * 2] << 1) + spritesPatternDataShifts8[i * 2 + 1];
+            // if already has some not transparent pixel, skipping others
+            if ((spritesPatternDataShifts8[i * 2] != 0 && spritesPatternDataShifts8[i * 2 + 1] != 0)) {
+                u8 spritePaletteInnerIndex = ((spritesPatternDataShifts8[i * 2]  & 0b10000000 ? 1 : 0) << 1) + (spritesPatternDataShifts8[i * 2 + 1] & 0b10000000 ? 1 : 0);
                 u8 spritePaletteNumber = spriteAttributeBytes[i] & 0b11;
                 Address spritePaletteAddress = 0x3F10 + (spritePaletteNumber << 2) + spritePaletteInnerIndex;
                 spriteTransparent = (spritePaletteAddress == 0x3F10);
                 spriteColor = Palette[memory.read(spritePaletteAddress)];
                 spritePriority = (spriteAttributeBytes[i] & 0b00100000) >> 5;
-                // shifting
-                spritesPatternDataShifts8[i * 2] <<= 1;
-                spritesPatternDataShifts8[i * 2 + 1] <<= 1;
             }
+            // shifting
+            spritesPatternDataShifts8[i * 2] <<= 1;
+            spritesPatternDataShifts8[i * 2 + 1] <<= 1;
         }
         else --spriteXCounters[i];
         // sprite 0 hit
@@ -312,6 +328,8 @@ Address PPU::_getPatternLowerOAM(u8 index) {
 
 // coarse x is incremented when next tile is reached
 void PPU::_coarseXIncrement() {
+    // not incrementing if render is disabled
+    if (renderingDisabled()) return;
     if ((v & 0x001F) == 31) {
         v &= ~0x001F;
         v ^= 0x0400;    // switch horizontal nametable
@@ -321,6 +339,8 @@ void PPU::_coarseXIncrement() {
 }
 
 void PPU::_yIncrement() {
+    // not incrementing if render is disabled
+    if (renderingDisabled()) return;
     // if fine Y < 7 increment fine y
     if ((v & 0x7000) != 0x7000) v += 0x1000;
     else {
@@ -338,13 +358,17 @@ void PPU::_yIncrement() {
 
 // makes v x scroll = t x scroll (first 5 bits) (we can't restore fine x. Should we? Because It is cyclic?)
 void PPU::_restoreXScrollFromT() {
-    v ^= (v & 0b11111);
-    v |= (t & 0b11111);
+    if (renderingDisabled()) return;
+    // bit 10 is a part of nametable selection, and also is part of x scroll
+    v ^= (v & 0b10000011111);
+    v |= (t & 0b10000011111);
 }
 
 void PPU::_restoreYScrollFromT() {
-    v ^= (v & 0b111001111100000);
-    v |= (t & 0b111001111100000);
+    if (renderingDisabled()) return;
+    // don't forget nametable bit
+    v ^= (v & 0b111101111100000);
+    v |= (t & 0b111101111100000);
 }
 
 /*
@@ -391,7 +415,7 @@ void PPU::_renderInternalUnknownNTFetches() {
 void PPU::_spriteEvaluateClearSecondaryOAM() {
     // initting byte with 0xff on even cycles
     if (cycle % 2 == 0) {
-        secondaryOAM[cycle / 2] = 0xff;
+        secondaryOAM[(cycle - 1) / 2] = 0xff;
     }
 }
 

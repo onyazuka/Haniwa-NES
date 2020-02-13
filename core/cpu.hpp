@@ -103,6 +103,8 @@ private:
     // and processed after competion of current CPU instruction in FIFO order.
     EventQueue& eventQueue;
     Logger* logger;
+    // used for debugging
+    u64 instructionCounter;
 };
 
 Instruction makeInstruction(CPU& cpu, AddressationMode addrMode, Address offset);

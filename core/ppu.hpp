@@ -26,6 +26,8 @@ class PPU;
 */
 class PPURegistersAccess {
 public:
+    friend class PPU;
+
     PPURegistersAccess(PPU& _ppu);
     inline u8 readPpuctrl() const { return ppuRegisters.ppuctrl; }
     PPURegistersAccess& writePpuctrl(u8 val);
@@ -90,6 +92,7 @@ public:
 
     PPURegistersAccess& writeOamdma(u8 val);
     inline u8 readOamdma() const { return ppuRegisters.oamdma; }
+
 private:
     PPU& ppu;
     PPURegisters ppuRegisters;
@@ -115,6 +118,11 @@ public:
     inline const auto& image() const { return _image; }
     void step();
     void emulateCycle();
+
+    // write access is FORBIDDEN during rendering(not in vblank or if rendering enabled). Reading is possible(and, in fact, it is used in some games)
+    // I should not read ppustatus via method, because reading it clears vblank
+    inline bool isDataChangeForbidden() const { return (!(ppuRegisters.ppuRegisters.ppustatus & 0b10000000) && (ppuRegisters.readPpumaskShowBckg() || ppuRegisters.readPpumaskShowSprites())); }
+    inline bool renderingDisabled() const { return !ppuRegisters.readPpumaskShowBckg() && !ppuRegisters.readPpumaskShowSprites(); }
 
 private:
     void preRender();

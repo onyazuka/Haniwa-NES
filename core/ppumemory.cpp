@@ -20,9 +20,9 @@ PPUMemory& PPUMemory::write(Address address, u8 val) {
 
 Address PPUMemory::_fixAddress(Address address) {
     if(address >= 0x2000 && address < 0x3000) return _applyMirroring(address);
-    if(address >= 0x3000 && address < 0x3F00) return address - 0x1000;      // mirroring nametables
+    if(address >= 0x3000 && address < 0x3F00) return _applyMirroring(address - 0x1000);      // mirroring nametables, also don't forget to mirror mirrored data :)
     if(address >= 0x3F20 && address < 0x4000) return 0x3F00 + (address % 0x20); // mirroring pallette indexes
-    if(address == 0x3F10 || address == 0x3F14 || address == 0x3F18 || 0x3F1C) return address - 0x0010;  // also palette mirroring
+    if(address == 0x3F10 || address == 0x3F14 || address == 0x3F18 || address == 0x3F1C) return address - 0x0010;  // also palette mirroring
     return address;
 }
 
