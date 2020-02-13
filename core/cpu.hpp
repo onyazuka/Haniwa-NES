@@ -55,11 +55,20 @@ struct Registers {
 };
 
 
-struct Instruction {
-    u8 val8;
+class Instruction {
+public:
+    Instruction() {}
+    Instruction(Memory* _memory, std::optional<u8> _val8, Address _address, u8 _length, u8 _cycles)
+        : address{_address}, length{_length}, cycles{_cycles}, memory{_memory}, value8{_val8} {}
     Address address;
     u8 length;          // in bytes
     u8 cycles;
+    // value will be read only once and only if needed
+    inline u8 val8() { if(!value8) value8 = memory->read8(address); return value8.value(); }
+    inline bool hasVal8() const { return value8.has_value(); }
+private:
+    Memory* memory;
+    std::optional<u8> value8;
 };
 
 class CPU {
@@ -75,12 +84,12 @@ private:
     void emulateCycles(std::function<int(void)> f);
     void oamDmaWrite();
     // stack operations
-    inline CPU& push(u8 val) { memory.write8((registers().S)--, val); return *this; }
-    inline CPU& push(u16 val) { memory.write16((registers().S), val); registers().S -= 2; return *this; }
-    inline CPU& pop8() { (registers().S)++; return *this; }
-    inline CPU& pop16() { (registers().S) += 2; return *this; }
-    u8 top8() { return memory.read8(registers().S + 1); }
-    u16 top16() { return memory.read16(registers().S + 2); }
+    inline CPU& push(u8 val) { memory.write8((0x100 + registers().S), val); registers().S -= 1; return *this; }
+    inline CPU& push(u16 val) { memory.write16(0x100 + registers().S - 1, val); registers().S -= 2; return *this; }
+    inline CPU& pop8() { registers().S += 1; return *this; }
+    inline CPU& pop16() { registers().S += 2; return *this; }
+    u8 top8() { return memory.read8(0x100 + registers().S + 1); }
+    u16 top16() { return memory.read16(0x100 + registers().S + 1); }
     AddressationMode _getAddressationModeByOpcode(u8 opcode);
     void _frameSync();
     void _processEventQueue();

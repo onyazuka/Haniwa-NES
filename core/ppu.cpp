@@ -79,6 +79,8 @@ PPURegistersAccess& PPURegistersAccess::writePpuaddr(u8 val) {
 }
 
 PPURegistersAccess& PPURegistersAccess::writePpudata(u8 val) {
+    // write access is FORBIDDEN during rendering(not in vblank or if rendering enabled). Reading is possible(and, in fact, it is used in some games)
+    if (!(ppuRegisters.ppustatus & 0b10000000) || readPpumaskShowBckg() || readPpumaskShowSprites()) return *this;
     ppu.memory.write(ppu.v & ppu.AccessAddressMask, val);
     // if ppuctrl 2nd bit is set, incrementing by 32, else by 1
     ppu.v += readPpuctrlVramIncrement() ? 32 : 1;
@@ -116,8 +118,9 @@ void PPU::step() {
         cycle = 0;
         ++scanline;
     }
-    if (scanline == 261) {
-        scanline = 0;
+    if (scanline == 260) {
+        // to prerender
+        scanline = -1;
         cycle = 0;
         ++frame;
     }

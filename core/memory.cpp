@@ -7,7 +7,7 @@ Memory::Memory(MapperInterface& _mapper, PPU& _ppu)
 
 u8 Memory::read8(Address offset) {
     if(isInPPURegisters(offset)) {
-        auto ppuregs = ppu.accessPPURegisters();
+        auto& ppuregs = ppu.accessPPURegisters();
         switch(offset) {
         case 0x2000: return ppuregs.readPpuctrl();
         case 0x2001: return ppuregs.readPpumask();
@@ -28,7 +28,7 @@ u8 Memory::read8(Address offset) {
 
 Memory& Memory::write8(Address offset, u8 val) {
     if(isInPPURegisters(offset)) {
-        auto ppuregs = ppu.accessPPURegisters();
+        auto& ppuregs = ppu.accessPPURegisters();
         switch(offset) {
         case 0x2000: ppuregs.writePpuctrl(val); return *this;
         case 0x2001: ppuregs.writePpumask(val); return *this;

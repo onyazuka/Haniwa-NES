@@ -109,7 +109,7 @@ public:
     template<typename std::size_t N> using Bytes = std::array<u8, N>;
 
     PPU(PPUMemory& _memory, EventQueue& eventQueue, Logger* logger = nullptr);
-    inline PPURegistersAccess accessPPURegisters() { return ppuRegisters; }
+    inline PPURegistersAccess& accessPPURegisters() { return ppuRegisters; }
     inline auto currentFrame() const { return frame; }
     inline auto& getOAM() { return OAM; }
     void step();

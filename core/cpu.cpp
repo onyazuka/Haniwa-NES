@@ -24,11 +24,11 @@ Instruction makeInstruction(CPU& cpu, AddressationMode addrMode, Address offset)
     // cross page can occure when using AbsoluteX, AbsoluteY or IndirectIndexed modes
     bool crossPage = false;
     if (addrMode == AddressationMode::Implied || addrMode == AddressationMode::Accumulator) {
-        return Instruction{0,0,1,2};
+        return Instruction{&memory,std::nullopt,0,1,2};
     }
     else if (addrMode == AddressationMode::Immediate) {
         // 0 means we don't have any address
-        return Instruction{memory.read8(offset), 0, 2, 2};
+        return Instruction{&memory,memory.read8(offset), 0, 2, 2};
     }
     else if (addrMode == AddressationMode::ZeroPage) {
         addr = memory.read8(offset);
@@ -92,7 +92,7 @@ Instruction makeInstruction(CPU& cpu, AddressationMode addrMode, Address offset)
     else {
         throw UnknownAddressModeException{};
     }
-    return Instruction{memory.read8(addr), addr, length, cycles};
+    return Instruction{&memory, std::nullopt, addr, length, cycles};
 }
 
 CPU::CPU(Memory &_memory, PPU& _ppu, EventQueue& _eventQueue, Logger* _logger)
@@ -133,11 +133,10 @@ u8 CPU::step() {
     Registers& regs = registers();
     u16 nextBranchAddress = 0;          // set by branching operation
     u16 nextUnconditionalAddress = 0;   // set by any other operation
-    if(logger) logger->log(LogLevel::Debug, "Executing: " + getPrettyInstruction(opcode, addrMode, offset, instruction));
     switch(opcode) {
     // ADC
     case 0x69: case 0x65: case 0x75: case 0x6D: case 0x7D: case 0x79: case 0x61: case 0x71: {
-        u8 adding = instruction.val8 + regs.carry();
+        u8 adding = instruction.val8() + regs.carry();
         u8 res = regs.A + adding;
         // carry can be detected if result is smaller than the first term(as technically we summ only positive numbers)
         // overflow flag is set for a + b = c, if a and b have the same sign, and c has other
@@ -148,7 +147,7 @@ u8 CPU::step() {
     }
     // AND
     case 0x29: case 0x25: case 0x35: case 0x2D: case 0x3D: case 0x39: case 0x21: case 0x31:
-        regs.A &= instruction.val8;
+        regs.A &= instruction.val8();
         regs.setZero(regs.A).setNegative(regs.A);
         break;
     // ASL
@@ -161,8 +160,8 @@ u8 CPU::step() {
         }
         // memory
         else {
-            regs.setCarry(instruction.val8 & 0b10000000);
-            u8 res = instruction.val8 << 1;
+            regs.setCarry(instruction.val8() & 0b10000000);
+            u8 res = instruction.val8() << 1;
             memory.write8(instruction.address, res);
             regs.setZero(res).setNegative(res);
             instruction.cycles += 2;
@@ -177,7 +176,7 @@ u8 CPU::step() {
     case 0xF0: if(regs.zero()) nextBranchAddress = instruction.address; break;
     // BIT
     case 0x24: case 0x2C: {
-        u8 res = regs.A & instruction.val8;
+        u8 res = regs.A & instruction.val8();
         regs.setZero(res).setNegative(res).setOverflow(res & 0b01000000);
         break;
     }
@@ -208,19 +207,19 @@ u8 CPU::step() {
     case 0xB8: regs.setOverflow(false); break;
     // CMP
     case 0xC9: case 0xC5: case 0xD5: case 0xCD: case 0xDD: case 0xD9: case 0xC1: case 0xD1:
-        regs.setCarry(regs.A >= instruction.val8).setZero(regs.A == instruction.val8).setNegative(regs.A < instruction.val8);
+        regs.setCarry(regs.A >= instruction.val8()).setZero(regs.A == instruction.val8()).setNegative(regs.A < instruction.val8());
         break;
     // CPX
     case 0xE0: case 0xE4: case 0xEC:
-        regs.setCarry(regs.X >= instruction.val8).setZero(regs.X == instruction.val8).setNegative(regs.X < instruction.val8);
+        regs.setCarry(regs.X >= instruction.val8()).setZero(regs.X == instruction.val8()).setNegative(regs.X < instruction.val8());
         break;
     // CPY
     case 0xC0: case 0xC4: case 0xCC:
-        regs.setCarry(regs.Y >= instruction.val8).setZero(regs.Y == instruction.val8).setNegative(regs.Y < instruction.val8);
+        regs.setCarry(regs.Y >= instruction.val8()).setZero(regs.Y == instruction.val8()).setNegative(regs.Y < instruction.val8());
         break;
     // DEC
     case 0xC6: case 0xD6: case 0xCE: case 0xDE: {
-        u8 res = instruction.val8 - 1;
+        u8 res = instruction.val8() - 1;
         regs.setZero(res).setNegative(res);
         memory.write8(instruction.address, res);
         // not standard cycle count
@@ -233,12 +232,12 @@ u8 CPU::step() {
     case 0x88: regs.Y--; regs.setZero(regs.Y).setNegative(regs.Y);  break;
     // EOR
     case 0x49: case 0x45: case 0x55: case 0x4D: case 0x5D: case 0x59: case 0x41: case 0x51:
-        regs.A ^= instruction.val8;
+        regs.A ^= instruction.val8();
         regs.setZero(regs.A).setNegative(regs.A);
         break;
     // INC
     case 0xE6: case 0xF6: case 0xEE: case 0xFE: {
-        u8 res = instruction.val8 + 1;
+        u8 res = instruction.val8() + 1;
         regs.setZero(res).setNegative(res);
         memory.write8(instruction.address, res);
         instruction.cycles += 2;
@@ -262,17 +261,17 @@ u8 CPU::step() {
         break;
     // LDA
     case 0xA9: case 0xA5: case 0xB5: case 0xAD: case 0xBD: case 0xB9: case 0xA1: case 0xB1:
-        regs.A = instruction.val8;
+        regs.A = instruction.val8();
         regs.setZero(regs.A).setNegative(regs.A);
         break;
     // LDX
     case 0xA2: case 0xA6: case 0xB6: case 0xAE: case 0xBE:
-        regs.X = instruction.val8;
+        regs.X = instruction.val8();
         regs.setZero(regs.X).setNegative(regs.X);
         break;
     // LDY
     case 0xA0: case 0xA4: case 0xB4: case 0xAC: case 0xBC:
-        regs.Y = instruction.val8;
+        regs.Y = instruction.val8();
         regs.setZero(regs.Y).setNegative(regs.Y);
         break;
     // LSR
@@ -285,8 +284,8 @@ u8 CPU::step() {
         }
         // memory
         else {
-            u8 res = instruction.val8 >> 1;
-            regs.setCarry(instruction.val8 & 0b1);
+            u8 res = instruction.val8() >> 1;
+            regs.setCarry(instruction.val8() & 0b1);
             memory.write8(instruction.address, res);
             regs.setZero(res).setNegative(res);
             instruction.cycles += 2;
@@ -297,7 +296,7 @@ u8 CPU::step() {
     case 0xEA: instruction.cycles = 2; break;
     // ORA
     case 0x09: case 0x05: case 0x15: case 0x0D: case 0x1D: case 0x19: case 0x01: case 0x11:
-        regs.A |= instruction.val8;
+        regs.A |= instruction.val8();
         regs.setZero(regs.A).setNegative(regs.A);
         break;
     // PHA
@@ -319,8 +318,8 @@ u8 CPU::step() {
         }
         // memory
         else {
-            u8 res = ROL(instruction.val8, 1);
-            regs.setCarry(instruction.val8 & 0b10000000);
+            u8 res = ROL(instruction.val8(), 1);
+            regs.setCarry(instruction.val8() & 0b10000000);
             memory.write8(instruction.address, res);
             regs.setZero(res).setNegative(res);
             instruction.cycles += 2;
@@ -337,8 +336,8 @@ u8 CPU::step() {
         }
         // memory
         else {
-            u8 res = ROR(instruction.val8, 1);
-            regs.setCarry(instruction.val8 & 1);
+            u8 res = ROR(instruction.val8(), 1);
+            regs.setCarry(instruction.val8() & 1);
             memory.write8(instruction.address, res);
             regs.setZero(res).setNegative(res);
             instruction.cycles += 2;
@@ -351,7 +350,7 @@ u8 CPU::step() {
     case 0x60: nextUnconditionalAddress = top16() + 1; pop16(); instruction.cycles = 6; break;
     // SBC
     case 0xE9: case 0xE5: case 0xF5: case 0xED: case 0xFD: case 0xF9: case 0xE1: case 0xF1: {
-        u8 subbing = instruction.val8 + 1 - regs.carry();
+        u8 subbing = instruction.val8() + 1 - regs.carry();
         u8 res = regs.A - subbing;
         regs.setZero(res).setNegative(res).setCarry(res > regs.A).setOverflow((~(regs.A ^ subbing))&(regs.A ^ res)&0x80);
         regs.A = res;
@@ -392,6 +391,8 @@ u8 CPU::step() {
         if(logger) logger->log(LogLevel::Warning, "Unknown opcode " + std::to_string(opcode) + ". Can it be NOP?");
         instruction.cycles = 2; break;
     }
+    // IT SHOULD BE HERE: trying to not trigger unnecessary read operation
+    if(logger) logger->log(LogLevel::Debug, "Executing: " + getPrettyInstruction(opcode, addrMode, offset, instruction));
     if (nextUnconditionalAddress) regs.PC = nextUnconditionalAddress;
     else if (nextBranchAddress) {
         regs.PC = nextBranchAddress;
@@ -456,7 +457,7 @@ void CPU::interrupt(InterruptType intType, Address nextPC) {
     registers().setBFlag(intType == InterruptType::BRK);    // only BRK sets B flag
     push(nextPC).push(registers().P);
     registers().setInterruptDisable(true);
-    registers().PC = intType == InterruptType::NMI ? NonMaskableInterruptVectorAddress : InterruptVectorAddress;
+    registers().PC = intType == InterruptType::NMI ? memory.read16(NonMaskableInterruptVectorAddress) : memory.read8(InterruptVectorAddress);
 }
 
 // using a frame as syncrhronization unit
@@ -503,7 +504,7 @@ void CPU::oamDmaWrite() {
 }
 
 std::string getPrettyInstruction(u8 opcode, AddressationMode addrMode, Address curAddress, Instruction instruction) {
-    std::string hexVal8 = numToHexStr(instruction.val8, 2);
+    std::string hexVal8 = instruction.hasVal8() ? numToHexStr(instruction.val8(), 2) : "UNKNOWN";
     std::string hexAddr8 = numToHexStr(instruction.address, 2);
     std::string hexAddr16 = numToHexStr(instruction.address, 4);
     std::string curHexAddr8 = numToHexStr(curAddress, 2);;
