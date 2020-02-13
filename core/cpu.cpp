@@ -467,6 +467,13 @@ void CPU::_frameSync() {
     auto sleepDuration = std::chrono::nanoseconds(MaxFrameDurationNs - (curTimePoint - syncTimePoint).count());
     std::this_thread::sleep_for(std::chrono::nanoseconds(sleepDuration));
     syncTimePoint = curTimePoint;
+
+
+    // DEBUG
+    /*if(ppu.currentFrame() == 300) {
+        dumpPixelsToFile(ppu.image(), "/home/onyazuka/pixels");
+        std::cout << "DONE\n";
+    }*/
 }
 
 void CPU::_processEventQueue() {

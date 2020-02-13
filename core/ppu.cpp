@@ -217,15 +217,16 @@ void PPU::pixelRender() {
     if((cycle >= 265 && cycle <= 321) && (((cycle - 1) % 8) == 0)) _spriteEvaluateFedData();
 }
 
-void PPU::drawPixel(u8 x, u8 y) {
+void PPU::drawPixel(u8 xCoord, u8 yCoord) {
     // get background pixel
     // keeping in mind fine x scroll
-    static u16 shiftMask16 = 0b1000000000000000 >> x;
-    static u8  shiftMask8  = 0b10000000 >> x;
+    u16 shiftMask16 = 0b1000000000000000 >> x;
+    u8  shiftMask8  = 0b10000000 >> x;
     // to make 0 or 1
-    u8 unshiftSize = 7 - x;
-    u8 bckgPaletteInnerIndex = (((patternDataShifts16[0] & shiftMask16) >> unshiftSize) << 1) | ((patternDataShifts16[1] & shiftMask16) >> unshiftSize);
-    u8 bckgPaletteNumber = (((attrDataShifts8[0] & shiftMask8) >> unshiftSize) << 1) | ((attrDataShifts8[1] & shiftMask8) >> unshiftSize);
+    u8 unshiftSize8 = 7 - x;
+    u8 unshiftSize16 = 15 - x;
+    u8 bckgPaletteInnerIndex = (((patternDataShifts16[0] & shiftMask16) >> unshiftSize16) << 1) | ((patternDataShifts16[1] & shiftMask16) >> unshiftSize16);
+    u8 bckgPaletteNumber = (((attrDataShifts8[0] & shiftMask8) >> unshiftSize8) << 1) | ((attrDataShifts8[1] & shiftMask8) >> unshiftSize8);
     Address bckgPaletteAddress = 0x3F00 + (bckgPaletteNumber << 2) + bckgPaletteInnerIndex;
     u32 bckgColor = Palette[memory.read(bckgPaletteAddress)];
     u32 spriteColor;
@@ -254,7 +255,7 @@ void PPU::drawPixel(u8 x, u8 y) {
         if(i == 0 && !bckgTransparent && !spriteTransparent) ppuRegisters.writePpustatusSprite0Hit(1);
     }
     // deciding which pixel to draw
-    _image[y * 256 + x] = colorMultiplexer(bckgTransparent, bckgColor, spriteTransparent, spriteColor, spritePriority);
+    _image[yCoord * 256 + xCoord] = colorMultiplexer(bckgTransparent, bckgColor, spriteTransparent, spriteColor, spritePriority);
 
     // shifty shifts
     patternDataShifts16[0] <<= 1;
@@ -358,7 +359,7 @@ void PPU::_renderInternalFetchByte() {
     case 3: attrByte = memory.read(_getAttributeAddress()); break;
     case 5: lowBgByte = memory.read(_getPatternLower(ntByte)); break;
     case 7:
-        highBgByte = memory.read(lowBgByte + 8);
+        highBgByte = memory.read(_getPatternLower(ntByte) + 8);
         if(cycle != 256) _coarseXIncrement();
         // y is incremented only at dot 256 of each scanline
         else _yIncrement();

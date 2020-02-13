@@ -112,6 +112,7 @@ public:
     inline PPURegistersAccess& accessPPURegisters() { return ppuRegisters; }
     inline auto currentFrame() const { return frame; }
     inline auto& getOAM() { return OAM; }
+    inline const auto& image() const { return _image; }
     void step();
     void emulateCycle();
 
@@ -121,7 +122,7 @@ private:
     void postRender();
     void verticalBlank();
     void pixelRender();
-    void drawPixel(u8 x, u8 y);
+    void drawPixel(u8 xCoord, u8 yCoord);
     u32 colorMultiplexer(bool bckgTransparent, u32 bckgColor, bool spriteTransparent, u32 spriteColor, u8 spritePriority);
 
     void setVblank(bool val);
@@ -180,7 +181,7 @@ private:
     u8 spriteHighPatternByte;
 
     // --- private
-    u8 frame;       // cyclic is ok
+    u64 frame;
     i16 scanline;
     u16 cycle;      // this scanline cycle
 

@@ -1,7 +1,11 @@
 #pragma once
 #include <array>
 #include <string>
+#include <fstream>
 #include "core/common.hpp"
+
+typedef uint8_t u8;
+typedef uint32_t u32;
 
 // I had to write it for debugging :(
 const std::array<std::string, 256> OpcodeToString = {
@@ -34,4 +38,12 @@ std::string numToHexStr(T num, std::size_t minHexDigits) {
     while (res.size() < minHexDigits) res.push_back( '0');
     std::reverse(res.begin(), res.end());
     return "0x" + res;
+}
+
+template<std::size_t N>
+void dumpPixelsToFile(const std::array<u32, N>& pixels, const std::string& fname) {
+    std::ofstream ofs{fname};
+    for(auto i = 0; i < pixels.size(); ++i) {
+        ofs << pixels[i] << " ";
+    }
 }

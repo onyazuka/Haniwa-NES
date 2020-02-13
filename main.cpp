@@ -28,7 +28,7 @@ int main()
     } ss;
     memset(&ss, 0b11000000, 1);
 
-    OstreamLogger* oslogger = new OstreamLogger(std::cout, 0b1111);
+    OstreamLogger* oslogger = new OstreamLogger(std::cout, 0b1110);
     ROM rom("/home/onyazuka/cpp/ProjectsMy/HaniwaNES/roms/Donkey_Kong.nes", oslogger);
     Mapper0 mapper(rom, oslogger);
     PPUMemory ppuMemory{mapper, rom.header()->mirroring(), oslogger};
