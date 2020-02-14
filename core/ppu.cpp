@@ -114,7 +114,7 @@ PPURegistersAccess& PPURegistersAccess::writeOamdma(u8 val) {
 }
 
 PPU::PPU(PPUMemory& _memory, EventQueue& _eventQueue, Logger* _logger)
-    : ppuRegisters{*this}, memory{_memory}, eventQueue{_eventQueue}, logger{_logger}, v{0}, t{0}, x{0}, w{0}, OAM{},
+    : Observable(), ppuRegisters{*this}, memory{_memory}, eventQueue{_eventQueue}, logger{_logger}, v{0}, t{0}, x{0}, w{0}, OAM{},
       secondaryOAM{}, spritesPatternDataShifts8{}, spriteAttributeBytes{}, spriteXCounters{}, frame{0}, scanline{-1}, cycle{0}, _image{} {}
 
 void PPU::step() {
@@ -219,6 +219,7 @@ void PPU::postRender() {
 void PPU::verticalBlank() {
     if (scanline == 241 && cycle == 1) {
         ppuRegisters.writePpustatusVblank(1);
+        notify((int)PPUEvent::RerenderMe);
         // nmi request will be send after step is complete
         if(ppuRegisters.readPpuctrlVblankNMI()) eventQueue.get().push(EventType::InterruptNMI);
     }

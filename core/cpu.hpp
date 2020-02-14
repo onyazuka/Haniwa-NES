@@ -5,6 +5,7 @@
 #include <vector>
 #include <queue>
 #include <chrono>
+#include <thread>
 #include <functional>
 #include "common.hpp"
 #include "memory.hpp"
@@ -77,6 +78,7 @@ public:
     inline Memory& getMemory() { return memory; }
     inline Registers& registers() { return _registers; }
     void run();
+    inline std::thread runInSeparateThread() { return std::thread([this] { run(); }); }
     u8 step();
 
 private:

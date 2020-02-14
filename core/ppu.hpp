@@ -4,6 +4,7 @@
 #include "common.hpp"
 #include "ppumemory.hpp"
 #include "eventqueue.hpp"
+#include "observer/observer.hpp"
 
 struct PPURegisters {
     PPURegisters();
@@ -100,7 +101,12 @@ private:
 
 const std::chrono::duration PPUCycle = std::chrono::nanoseconds(186);   // roughly
 
-class PPU {
+enum class PPUEvent {
+    RerenderMe
+};
+
+// making ppu observable so it ask gui for rendering during vblank
+class PPU : public Observable<PPU>{
 public:
     // only 14 bits out of 15
     const Address AccessAddressMask = 0b11111111111111;
