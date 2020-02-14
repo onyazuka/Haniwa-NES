@@ -34,6 +34,7 @@ std::optional<u8> MapperInterface::readCHR(Address offset) {
 
 std::optional<bool> MapperInterface::writeCHR(Address offset, u8 val) {
     if(!checkCHRAddress(offset)) return std::nullopt;
+    if(logger) logger->log(LogLevel::Warning, "CHR-ROM writing attempt at " + std::to_string(offset) + " with value " + std::to_string(val));
     rom.CHRROM()[addressCHRFix(offset)] = val;
     return true;
 }

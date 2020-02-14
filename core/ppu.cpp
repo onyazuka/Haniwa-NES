@@ -180,10 +180,6 @@ void PPU::preRender() {
 }
 
 void PPU::visibleRender() {
-    if(frame == 5 && scanline == 126) {
-        int i = 0;
-        i += 1;
-    }
     switch(cycle) {
     case 0: return;
     case 1 ... 256:
@@ -406,8 +402,8 @@ void PPU::_renderInternalFedRegisters() {
     // storing attribute table data in shifts(8 sequential pixel will have the same attribute table data)
     attrDataShifts8[0] = attrDataLatches[0] == 1 ? 0xFF : 0x00;
     attrDataShifts8[1] = attrDataLatches[1] == 1 ? 0xFF : 0x00;
-    attrDataLatches[0] = attrByte & 1;
-    attrDataLatches[1] = attrByte & 2;
+    attrDataLatches[0] = attrByte & 2;
+    attrDataLatches[1] = attrByte & 1;
 }
 
 void PPU::_renderInternalUnknownNTFetches() {
@@ -428,15 +424,15 @@ void PPU::_spriteEvaluateClearSecondaryOAM() {
 void PPU::_spriteEvaluate() {
     // OAM[n*4 + m] - access to OAM sprite
     static u8 m = 0;
-    static u8 n = 0;
+    static u16 n = 0;
     // current slot in secondary OAM
     static u8 secondarySlot = 0;
     // temporary value read on odd cycles
     static i16 tempVal;
-    // initializing on cycle 65
+    // initializing on cycle 65. First sprite is a one at oamaddr
     if (cycle == 65) {
-        m = 0;
-        n = 0;
+        m = ppuRegisters.readOamaddr() % 4;
+        n = ppuRegisters.readOamaddr() / 4;
         secondarySlot = 0;
     }
     // odd cycles - reading from OAM
@@ -445,6 +441,8 @@ void PPU::_spriteEvaluate() {
     }
     // even cycles - writing to secondary OAM
     else {
+        // if oamaddr at start of dot 65 is not 0, overflow can occure. In this case, just ignoring next values
+        if (n >= 256) return;
         u8 tempY = OAM[n * 4];
         // sprite is on the next scanline
         u8 spriteHeight = ppuRegisters.readPpuctrlSpriteSize() ? 16 : 8;

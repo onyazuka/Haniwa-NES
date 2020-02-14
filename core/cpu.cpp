@@ -136,13 +136,12 @@ u8 CPU::step() {
     switch(opcode) {
     // ADC
     case 0x69: case 0x65: case 0x75: case 0x6D: case 0x7D: case 0x79: case 0x61: case 0x71: {
-        u8 adding = instruction.val8() + regs.carry();
-        u8 res = regs.A + adding;
+        u16 res = regs.A + instruction.val8() + regs.carry();
         // carry can be detected if result is smaller than the first term(as technically we summ only positive numbers)
         // overflow flag is set for a + b = c, if a and b have the same sign, and c has other
         // ~(regs.A ^ adding) will will evaluate to true, if both have same sign, and regs.A ^ res - if both have different signs
-        regs.setZero(res).setNegative(res).setCarry(res < regs.A).setOverflow((~(regs.A ^ adding))&(regs.A ^ res)&0x80);
-        regs.A = res;
+        regs.setZero(res).setNegative(res).setCarry(res > 0xff).setOverflow((~(regs.A ^ instruction.val8()))&(regs.A ^ res)&0x80);
+        regs.A = res % 256;
         break;
     }
     // AND
@@ -350,10 +349,13 @@ u8 CPU::step() {
     case 0x60: nextUnconditionalAddress = top16() + 1; pop16(); instruction.cycles = 6; break;
     // SBC
     case 0xE9: case 0xE5: case 0xF5: case 0xED: case 0xFD: case 0xF9: case 0xE1: case 0xF1: {
-        u8 subbing = instruction.val8() + 1 - regs.carry();
-        u8 res = regs.A - subbing;
-        regs.setZero(res).setNegative(res).setCarry(res > regs.A).setOverflow((~(regs.A ^ subbing))&(regs.A ^ res)&0x80);
-        regs.A = res;
+        u8 toSub = ~(instruction.val8());
+        u16 res = regs.A + toSub + regs.carry();
+        // carry can be detected if result is smaller than the first term(as technically we summ only positive numbers)
+        // overflow flag is set for a + b = c, if a and b have the same sign, and c has other
+        // ~(regs.A ^ adding) will will evaluate to true, if both have same sign, and regs.A ^ res - if both have different signs
+        regs.setZero(res).setNegative(res).setCarry(res > 0xff).setOverflow((~(regs.A ^ toSub))&(regs.A ^ res)&0x80);
+        regs.A = res % 256;
         break;
     }
     // SEC
@@ -468,11 +470,10 @@ void CPU::_frameSync() {
     auto sleepDuration = std::chrono::nanoseconds(MaxFrameDurationNs - (curTimePoint - syncTimePoint).count());
     std::this_thread::sleep_for(std::chrono::nanoseconds(sleepDuration));
     syncTimePoint = curTimePoint;
-    // DEBUG
-    if(ppu.currentFrame() == 351) {
-        dumpPixelsToFile(ppu.image(), "/home/onyazuka/pixels");
-        std::cout << "DONE\n";
-    }
+    /*if(ppu.currentFrame() == 5) {
+        int i = 0;
+        i += 1;
+    }*/
 }
 
 void CPU::_processEventQueue() {
