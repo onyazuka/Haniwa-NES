@@ -38,7 +38,7 @@ int main()
     Mapper0 mapper(rom, oslogger);
     PPUMemory ppuMemory{mapper, rom.header()->mirroring(), oslogger};
     EventQueue eventQueue;
-    PPU ppu{ppuMemory, eventQueue};
+    PPU ppu{ppuMemory, eventQueue, oslogger};
     Memory memory(mapper, ppu);
     CPU cpu(memory, ppu, eventQueue, oslogger);
     cpu.run();

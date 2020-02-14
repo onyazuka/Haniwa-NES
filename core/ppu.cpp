@@ -180,6 +180,10 @@ void PPU::preRender() {
 }
 
 void PPU::visibleRender() {
+    if(frame == 5 && scanline == 126) {
+        int i = 0;
+        i += 1;
+    }
     switch(cycle) {
     case 0: return;
     case 1 ... 256:
@@ -254,7 +258,7 @@ void PPU::drawPixel(u8 xCoord, u8 yCoord) {
         if (spriteXCounters[i] == 0) {
             // has some data
             // if already has some not transparent pixel, skipping others
-            if ((spritesPatternDataShifts8[i * 2] != 0 && spritesPatternDataShifts8[i * 2 + 1] != 0)) {
+            if ((spritesPatternDataShifts8[i * 2] != 0 || spritesPatternDataShifts8[i * 2 + 1] != 0)) {
                 u8 spritePaletteInnerIndex = ((spritesPatternDataShifts8[i * 2]  & 0b10000000 ? 1 : 0) << 1) + (spritesPatternDataShifts8[i * 2 + 1] & 0b10000000 ? 1 : 0);
                 u8 spritePaletteNumber = spriteAttributeBytes[i] & 0b11;
                 Address spritePaletteAddress = 0x3F10 + (spritePaletteNumber << 2) + spritePaletteInnerIndex;
@@ -311,18 +315,18 @@ Address PPU::_getPatternLower(u8 index) {
 Address PPU::_getPatternLowerOAM(u8 index) {
     u8 spriteIndex = (cycle - 257) / 8;
     bool flipVertical = secondaryOAM[spriteIndex * 4 + 2] & 0b10000000;
+    // vertical flip can be described as reverse of current fine y scroll
+    u8 fineYScroll = scanline + 1 - secondaryOAM[spriteIndex * 4];
+    if (flipVertical) fineYScroll = ~fineYScroll;
     // 8x8 sprites
     if (ppuRegisters.readPpuctrlSpriteSize() == 0) {
-        // vertical flip can be described as reverse of current fine y scroll
-        u8 fineYScroll = secondaryOAM[spriteIndex * 4] & 0b111;
-        if (flipVertical) fineYScroll = ~fineYScroll;
-        return ((ppuRegisters.readPpuctrlBckgPTAddr() * 0x1000) | (index * 16)) + fineYScroll;
+        // 8x16 sprites aligned in pattern table as: lower1, higher1, lower2, higher2
+        u8 ptOffset = fineYScroll < 8 ? fineYScroll : (fineYScroll + 8);
+        return ((ppuRegisters.readPpuctrlSpritePTAddrt() * 0x1000) | (index * 16)) + ptOffset;
     }
     // 8x16 sprites
     else {
-        u8 fineYScroll = secondaryOAM[spriteIndex * 4] & 0b1111;
-        if (flipVertical) fineYScroll = ~fineYScroll;
-        return (((index & 1) * 0x1000) | (((index & 0b11111110) >> 1) * 16)) + secondaryOAM[spriteIndex * 4];
+        return (((index & 1) * 0x1000) | (((index & 0b11111110) >> 1) * 16)) + fineYScroll;
     }
 }
 
@@ -440,57 +444,32 @@ void PPU::_spriteEvaluate() {
     }
     // even cycles - writing to secondary OAM
     else {
-        secondaryOAM[secondarySlot * 4 + m] = tempVal;
-        u8 tempY = secondaryOAM[secondarySlot * 4];
-        // sprite is on current scanline
-        if((tempY >= (scanline + 1) * 8) && (tempY < (scanline + 2) * 8)) {
+        u8 tempY = OAM[n * 4];
+        // sprite is on the next scanline
+        u8 spriteHeight = ppuRegisters.readPpuctrlSpriteSize() ? 16 : 8;
+        if(tempY <= (scanline + 1) && (scanline + 1) < (tempY + spriteHeight)) {
+            secondaryOAM[secondarySlot * 4 + m] = tempVal;
             // all slots are already filled - setting sprite overflow
             if (secondarySlot == 8) ppuRegisters.writePpustatusSpriteOverflow(1);
-            else {
-                ++m;
-                if(m == 4) {
-                    m = 0;
-                    ++n;
-                    ++secondarySlot;
-                }
-            }
-        } else {
-            ++n;
+            else if (m == 4) ++secondarySlot;
         }
+        ++m;
+        if(m == 4) { m = 0; ++n; }
     }
 }
 
 // fetching data and writing it to the temporary registers
 void PPU::_spriteEvaluateFetchData() {
-    // to track 8x16 sprite's second parts
-    static bool read8x16Occured = false;
-
     u8 remainder = (cycle - 1) % 8;
     u8 spriteIndex = (cycle - 257) / 8;
-
     switch(remainder) {
      // as byte fetching from memory requires 2 ppu cycles, we will get result on next cycle
     case 0: case 2: case 4: case 6: return;
     // garbage reads
     case 1: memory.read(_getTileAddress()); break;
     case 3: memory.read(_getAttributeAddress()); break;
-    case 5: {
-        Address spriteLowPatternAddress = _getPatternLowerOAM(secondaryOAM[spriteIndex * 4 + 1]);
-        // 8x8 sprites
-        if(ppuRegisters.readPpuctrlSpriteSize() == 0) {
-            if(read8x16Occured) if(logger) logger->log(LogLevel::Warning, "8x16 sprites rendering: second part was not read");
-        }
-        // 8x16 sprites
-        else {
-            if(!read8x16Occured) read8x16Occured = true;                    // read first part of sprite
-            else { spriteLowPatternAddress++; read8x16Occured = false; }     // read second part of sprite(it's pattern data is stored at addr+1 of PT)
-        }
-        spriteLowPatternByte = spriteLowPatternAddress;
-        break;
-    }
-    case 7:
-        spriteHighPatternByte = memory.read(spriteLowPatternByte + 8);
-        break;
+    case 5: spriteLowPatternByte = memory.read(_getPatternLowerOAM(secondaryOAM[spriteIndex * 4 + 1])); break;
+    case 7: spriteHighPatternByte = memory.read(_getPatternLowerOAM(secondaryOAM[spriteIndex * 4 + 1]) + 8); break;
     }
 }
 

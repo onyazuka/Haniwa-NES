@@ -469,7 +469,7 @@ void CPU::_frameSync() {
     std::this_thread::sleep_for(std::chrono::nanoseconds(sleepDuration));
     syncTimePoint = curTimePoint;
     // DEBUG
-    if(ppu.currentFrame() == 30) {
+    if(ppu.currentFrame() == 351) {
         dumpPixelsToFile(ppu.image(), "/home/onyazuka/pixels");
         std::cout << "DONE\n";
     }

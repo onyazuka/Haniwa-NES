@@ -3,31 +3,24 @@ CLD NB: The state of the decimal flag is uncertain when the CPU is powered up an
 
 JMP NB
 
-Stack initial state: why is it 0xFD when, according to nes dev wiki, stack always uses some of addresses from 0x100-0x1FF?
-
-WARNINGS!!!:
-	Article "http://www.obelisk.me.uk/6502/addressing.html" has incorrect info about relative addressing: relative offset is always counted from the beginning of the next instruction!!!
++ Stack initial state: why is it 0xFD when, according to nes dev wiki, stack always uses some of addresses from 0x100-0x1FF?
 
 [PPU]
 + MIRRORING
 PPUSTATUS($2002) register - should I initialize it with zero, or some other value?
-PPUDATA read (post-fetch) - (read "The PPUDATA read buffer (post-fetch)" section at "http://wiki.nesdev.com/w/index.php/PPU_registers") - should ppu store an internal vram buffer?
-render enable, render enable leftmost
-Pre render stage - "During pixels 280 through 304 of this scanline, the vertical scroll bits are reloaded IF RENDERING IS ENABLED. "
-
++ PPUDATA read (post-fetch) - (read "The PPUDATA read buffer (post-fetch)" section at "http://wiki.nesdev.com/w/index.php/PPU_registers") - should ppu store an internal vram buffer?
++ render enable
+render enable leftmost
 + Palette bytes mirroring
-
 Pixel evaluation, clear OAM - return 0xff during clearing when reading 0x2004
 + 8x16 sprites - sprite evaluation
 first empty sprite - y coord of 63 sprite, than sequential 0xff
 + In what cycles pixels are drawn?
 Shift registers: I decided to load data in the LOWER bits of the shift registers and to rotate it to the RIGHT. So we have current bit as UPPERMOST bit. Is it right?
-Reading PPUDATA during vblank is ok, but what about rendering enable/disable??? SHould it be only vblank where it is ok to read?
++ Reading PPUDATA during vblank is ok, but what about rendering enable/disable??? SHould it be only vblank where it is ok to read?
 Write to OAMDMA during rendering. Is it ok?
 
 
 [BUGS]
 + Instruction - unnecessary read operations can have influence on some registers(0x2002 bit 7, for example) 
 
-
-????????????????????????????????SHOULD OR NOT I CLEAR 7 BIT ON READING PPUSTATUS????????????????????????????????
