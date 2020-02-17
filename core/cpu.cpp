@@ -117,6 +117,10 @@ u8 CPU::step() {
     Address offset = registers().PC;
     u8 opcode = memory.read8(offset);
     AddressationMode addrMode;
+    if(instructionCounter == 48524) {
+        int i = 0;
+        i += 1;
+    }
     Instruction instruction;
     try {
         addrMode = _getAddressationModeByOpcode(opcode);
@@ -140,8 +144,8 @@ u8 CPU::step() {
         // carry can be detected if result is smaller than the first term(as technically we summ only positive numbers)
         // overflow flag is set for a + b = c, if a and b have the same sign, and c has other
         // ~(regs.A ^ adding) will will evaluate to true, if both have same sign, and regs.A ^ res - if both have different signs
-        regs.setZero(res).setNegative(res).setCarry(res > 0xff).setOverflow((~(regs.A ^ instruction.val8()))&(regs.A ^ res)&0x80);
-        regs.A = res % 256;
+        regs.setZero((res & 0xFF) == 0).setNegative(res).setCarry(res > 0xFF).setOverflow((~(regs.A ^ instruction.val8()))&(regs.A ^ res)&0x80);
+        regs.A = res & 0xFF;
         break;
     }
     // AND
@@ -176,7 +180,8 @@ u8 CPU::step() {
     // BIT
     case 0x24: case 0x2C: {
         u8 res = regs.A & instruction.val8();
-        regs.setZero(res).setNegative(res).setOverflow(res & 0b01000000);
+        // negative and overflow flags are set to value of MEMORY bits, zero - to result's
+        regs.setZero(res).setNegative(instruction.val8()).setOverflow(instruction.val8() & 0b01000000);
         break;
     }
     // BMI
@@ -349,13 +354,11 @@ u8 CPU::step() {
     case 0x60: nextUnconditionalAddress = top16() + 1; pop16(); instruction.cycles = 6; break;
     // SBC
     case 0xE9: case 0xE5: case 0xF5: case 0xED: case 0xFD: case 0xF9: case 0xE1: case 0xF1: {
-        u8 toSub = ~(instruction.val8());
-        u16 res = regs.A + toSub + regs.carry();
-        // carry can be detected if result is smaller than the first term(as technically we summ only positive numbers)
-        // overflow flag is set for a + b = c, if a and b have the same sign, and c has other
-        // ~(regs.A ^ adding) will will evaluate to true, if both have same sign, and regs.A ^ res - if both have different signs
-        regs.setZero(res).setNegative(res).setCarry(res > 0xff).setOverflow((~(regs.A ^ toSub))&(regs.A ^ res)&0x80);
-        regs.A = res % 256;
+        u16 res = regs.A - instruction.val8() - !(regs.carry());
+        // carry flag is CLEARED if carry occures
+        // overflow flag is set the same way, as in ADC
+        regs.setZero((res & 0xFF) == 0).setNegative(res).setCarry(!(res & 0x100)).setOverflow((regs.A ^ res)&(~instruction.val8() ^ res)&0x80);
+        regs.A = res & 0xFF;
         break;
     }
     // SEC
@@ -470,10 +473,10 @@ void CPU::_frameSync() {
     auto sleepDuration = std::chrono::nanoseconds(MaxFrameDurationNs - (curTimePoint - syncTimePoint).count());
     std::this_thread::sleep_for(std::chrono::nanoseconds(sleepDuration));
     syncTimePoint = curTimePoint;
-    /*if(ppu.currentFrame() == 5) {
+    if(ppu.currentFrame() == 6) {
         int i = 0;
         i += 1;
-    }*/
+    }
 }
 
 void CPU::_processEventQueue() {

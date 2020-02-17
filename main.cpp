@@ -1,6 +1,7 @@
 #include <iostream>
 #include <cstring>
 #include <thread>
+#include <fstream>
 #include <SDL2/SDL.h>
 #include "core/cpu.hpp"
 #include "core/ppu.hpp"
@@ -51,12 +52,14 @@ int main()
 {
     //sdl();
 
+    std::ofstream ofs("/home/onyazuka/log.txt");
     OstreamLogger* oslogger = new OstreamLogger(std::cout, 0b1110);
-    ROM rom("/home/onyazuka/cpp/ProjectsMy/HaniwaNES/roms/Donkey_Kong.nes", oslogger);
+    ROM rom("/home/onyazuka/cpp/ProjectsMy/HaniwaNES/roms/Ice Climber (U) .nes", oslogger);
     Mapper0 mapper(rom, oslogger);
     PPUMemory ppuMemory{mapper, rom.header()->mirroring(), oslogger};
     EventQueue eventQueue;
     PPU ppu{ppuMemory, eventQueue, oslogger};
+    //ppu.setDrawDebugGrid(true);
     Memory memory(mapper, ppu);
     CPU cpu(memory, ppu, eventQueue, oslogger);
 

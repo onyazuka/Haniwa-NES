@@ -13,6 +13,10 @@ PPURegistersAccess& PPURegistersAccess::writePpuctrl(u8 val) {
     ppuRegisters.ppuctrl = val;
     ppu.t ^= (ppu.t & 0b110000000000);
     ppu.t |= (val & 0b11) << 10;
+    // if setting NMI flag, and in vblank, generate NMI
+    if ((ppuRegisters.ppustatus & 0b10000000) && (val & 0b10000000) && !(ppuRegisters.ppuctrl & 0b10000000)) {
+        ppu.eventQueue.get().push(EventType::InterruptNMI);
+    }
     return *this;
 }
 
@@ -117,7 +121,7 @@ PPURegistersAccess& PPURegistersAccess::writeOamdma(u8 val) {
 
 PPU::PPU(PPUMemory& _memory, EventQueue& _eventQueue, Logger* _logger)
     : Observable(), ppuRegisters{*this}, memory{_memory}, eventQueue{_eventQueue}, logger{_logger}, v{0}, t{0}, x{0}, w{0}, attrDataLatches{}, OAM{},
-      secondaryOAM{}, spritesPatternDataShifts8{}, spriteAttributeBytes{}, spriteXCounters{}, frame{0}, scanline{-1}, cycle{0}, _image{} {}
+      secondaryOAM{}, spritesPatternDataShifts8{}, spriteAttributeBytes{}, spriteXCounters{}, frame{0}, scanline{-1}, cycle{0}, drawDebugGrid{false}, _image{} {}
 
 void PPU::step() {
     switch(scanline) {
@@ -144,11 +148,7 @@ void PPU::step() {
 
 // should last roughly PPUCycle nanoseconds
 void PPU::emulateCycle() {
-    //auto start = std::chrono::high_resolution_clock::now();
     step();
-    //auto end = std::chrono::high_resolution_clock::now();
-    //auto elapsed = std::chrono::nanoseconds(end - start);
-    //std::cout << "(Scanline " << std::to_string(scanline) << ", cycle " << std::to_string(cycle) << ") Elapsed: " << std::chrono::nanoseconds(end - start).count() << std::endl;
 }
 
 void PPU::preRender() {
@@ -169,6 +169,9 @@ void PPU::preRender() {
     else if (cycle >= 280 && cycle <= 304)  _restoreYScrollFromT();
     else if (cycle >= 321 && cycle <= 336) {
         _renderInternalFetchByte();
+    }
+    if(cycle > 329 && cycle <= 337) {
+        _renderInternalBckgShifts();
     }
     // updating shifters
     if(cycle == 329 || cycle == 337) {
@@ -202,7 +205,9 @@ void PPU::visibleRender() {
     }
     if(cycle >= 3 && cycle <= 258) {
         if(!renderingDisabled()) drawPixel(cycle - 3, scanline);
+        _renderInternalBckgShifts();
     }
+    if(cycle > 329 && cycle <= 337) _renderInternalBckgShifts();
     if(((cycle > 1) && (cycle <= 257) && (((cycle - 1) % 8) == 0)) || (cycle == 329 || cycle == 337) ) {
         _renderInternalFedRegisters();
     }
@@ -236,6 +241,11 @@ void PPU::pixelRender() {
 }
 
 void PPU::drawPixel(u8 xCoord, u8 yCoord) {
+    // drawing grid for debug
+    if(drawDebugGrid && (xCoord % 8 == 0 || yCoord % 8 == 0)) {
+        _image[yCoord * 256 + xCoord] = 0xffffff;
+        return;
+    }
     // get background pixel
     // keeping in mind fine x scroll
     u16 shiftMask16 = 0b1000000000000000 >> x;
@@ -275,15 +285,6 @@ void PPU::drawPixel(u8 xCoord, u8 yCoord) {
     }
     // deciding which pixel to draw
     _image[yCoord * 256 + xCoord] = colorMultiplexer(bckgTransparent, bckgColor, spriteTransparent, spriteColor, spritePriority);
-
-    // shifty shifts
-    patternDataShifts16[0] <<= 1;
-    patternDataShifts16[1] <<= 1;
-    attrDataShifts8[0] <<= 1;
-    attrDataShifts8[1] <<= 1;
-    // setting lower attribute bit from appropriate latch
-    attrDataShifts8[0] |= attrDataLatches[0];
-    attrDataShifts8[1] |= attrDataLatches[1];
 }
 
 u32 PPU::colorMultiplexer(bool bckgTransparent, u32 bckgColor, bool spriteTransparent, u32 spriteColor, u8 spritePriority) {
@@ -413,6 +414,16 @@ void PPU::_renderInternalFedRegisters() {
 
     attrDataLatches[0] = attrByte & (1 << (attrByteOffset + 1));
     attrDataLatches[1] = attrByte & (1 << attrByteOffset);
+}
+
+void PPU::_renderInternalBckgShifts() {
+    patternDataShifts16[0] <<= 1;
+    patternDataShifts16[1] <<= 1;
+    attrDataShifts8[0] <<= 1;
+    attrDataShifts8[1] <<= 1;
+    // setting lower attribute bit from appropriate latch
+    attrDataShifts8[0] |= attrDataLatches[0];
+    attrDataShifts8[1] |= attrDataLatches[1];
 }
 
 void PPU::_renderInternalUnknownNTFetches() {

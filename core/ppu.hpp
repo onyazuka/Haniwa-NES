@@ -130,6 +130,8 @@ public:
     inline bool isDataChangeForbidden() const { return (!(ppuRegisters.ppuRegisters.ppustatus & 0b10000000) && (ppuRegisters.readPpumaskShowBckg() || ppuRegisters.readPpumaskShowSprites())); }
     inline bool renderingDisabled() const { return !ppuRegisters.readPpumaskShowBckg() && !ppuRegisters.readPpumaskShowSprites(); }
 
+    inline void setDrawDebugGrid(bool val) { drawDebugGrid = val; }
+
 private:
     void preRender();
     void visibleRender();
@@ -152,6 +154,7 @@ private:
     void _restoreYScrollFromT();
     void _renderInternalFetchByte();
     void _renderInternalFedRegisters();
+    void _renderInternalBckgShifts();
     void _renderInternalUnknownNTFetches();
     void _spriteEvaluateClearSecondaryOAM();
     void _spriteEvaluate();
@@ -198,6 +201,7 @@ private:
     u64 frame;
     i16 scanline;
     u16 cycle;      // this scanline cycle
+    bool drawDebugGrid;
 
     // image(in rgb)
     std::array<u32, 256 * 240> _image;
