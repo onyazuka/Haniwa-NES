@@ -81,7 +81,8 @@ PPURegistersAccess& PPURegistersAccess::writePpuaddr(u8 val) {
 }
 
 PPURegistersAccess& PPURegistersAccess::writePpudata(u8 val) {
-    if (ppu.isDataChangeForbidden()) return *this;
+    // IS THIS NEEDED? Monkey is not drawn in Donkey Kong with it
+    //if (ppu.isDataChangeForbidden()) return *this;
     ppu.memory.write(ppu.v & ppu.AccessAddressMask, val);
     // if ppuctrl 2nd bit is set, incrementing by 32, else by 1
     ppu.v += readPpuctrlVramIncrement() ? 32 : 1;
@@ -114,7 +115,7 @@ PPURegistersAccess& PPURegistersAccess::writeOamdma(u8 val) {
 }
 
 PPU::PPU(PPUMemory& _memory, EventQueue& _eventQueue, Logger* _logger)
-    : Observable(), ppuRegisters{*this}, memory{_memory}, eventQueue{_eventQueue}, logger{_logger}, v{0}, t{0}, x{0}, w{0}, OAM{},
+    : Observable(), ppuRegisters{*this}, memory{_memory}, eventQueue{_eventQueue}, logger{_logger}, v{0}, t{0}, x{0}, w{0}, attrDataLatches{}, OAM{},
       secondaryOAM{}, spritesPatternDataShifts8{}, spriteAttributeBytes{}, spriteXCounters{}, frame{0}, scanline{-1}, cycle{0}, _image{} {}
 
 void PPU::step() {
@@ -201,7 +202,7 @@ void PPU::visibleRender() {
     if(cycle >= 3 && cycle <= 258) {
         drawPixel(cycle - 3, scanline);
     }
-    if(((cycle >= 1) && (cycle <= 257) && (((cycle - 1) % 8) == 0)) || (cycle == 329 || cycle == 337) ) {
+    if(((cycle > 1) && (cycle <= 257) && (((cycle - 1) % 8) == 0)) || (cycle == 329 || cycle == 337) ) {
         _renderInternalFedRegisters();
     }
 }
@@ -246,20 +247,20 @@ void PPU::drawPixel(u8 xCoord, u8 yCoord) {
     Address bckgPaletteAddress = 0x3F00 + (bckgPaletteNumber << 2) + bckgPaletteInnerIndex;
     u32 bckgColor = Palette[memory.read(bckgPaletteAddress)];
     u32 spriteColor = 0;
-    bool bckgTransparent = bckgPaletteAddress == 0x3F00;
+    bool bckgTransparent = bckgPaletteAddress % 4 == 0;
     bool spriteTransparent = true;
-    u8 spritePriority = 1;      // behind background
+    u8 spritePriority = 0;      // behind background
     // get sprite pixel
     for(std::size_t i = 0; i < spriteXCounters.size(); ++i) {
         // sprite is active
         if (spriteXCounters[i] == 0) {
             // has some data
             // if already has some not transparent pixel, skipping others
-            if ((spritesPatternDataShifts8[i * 2] != 0 || spritesPatternDataShifts8[i * 2 + 1] != 0)) {
+            if (spriteTransparent && (spritesPatternDataShifts8[i * 2] != 0 || spritesPatternDataShifts8[i * 2 + 1] != 0)) {
                 u8 spritePaletteInnerIndex = ((spritesPatternDataShifts8[i * 2]  & 0b10000000 ? 1 : 0) << 1) + (spritesPatternDataShifts8[i * 2 + 1] & 0b10000000 ? 1 : 0);
                 u8 spritePaletteNumber = spriteAttributeBytes[i] & 0b11;
                 Address spritePaletteAddress = 0x3F10 + (spritePaletteNumber << 2) + spritePaletteInnerIndex;
-                spriteTransparent = (spritePaletteAddress == 0x3F10);
+                spriteTransparent = (spritePaletteAddress % 4 == 0);
                 spriteColor = Palette[memory.read(spritePaletteAddress)];
                 spritePriority = (spriteAttributeBytes[i] & 0b00100000) >> 5;
             }
@@ -399,11 +400,18 @@ void PPU::_renderInternalFedRegisters() {
     patternDataShifts16[0] |= highBgByte;
     patternDataShifts16[1] ^= (patternDataShifts16[1] & 0x00FF);
     patternDataShifts16[1] |= lowBgByte;
-    // storing attribute table data in shifts(8 sequential pixel will have the same attribute table data)
-    attrDataShifts8[0] = attrDataLatches[0] == 1 ? 0xFF : 0x00;
-    attrDataShifts8[1] = attrDataLatches[1] == 1 ? 0xFF : 0x00;
-    attrDataLatches[0] = attrByte & 2;
-    attrDataLatches[1] = attrByte & 1;
+
+    // determining the number of tile for which this attrByte is for
+    u8 tileY = (cycle == 329 || cycle == 337) ? (scanline + 1) >> 3 : scanline >> 3;
+    u8 tileX = cycle == 329 ? 0 : cycle == 337 ? 1 : 2 + ((cycle - 9) >> 3);
+
+    // each 2 bits of attribute byte contain info about a 2x2 tile piece
+    bool tileXOdd = (tileX >> 1) & 1;
+    bool tileYOdd = (tileY >> 1) & 1;
+    u8 attrByteOffset = (tileYOdd ? 4 : 0) + (tileXOdd ? 2 : 0);
+
+    attrDataLatches[0] = attrByte & (1 << (attrByteOffset + 1));
+    attrDataLatches[1] = attrByte & (1 << attrByteOffset);
 }
 
 void PPU::_renderInternalUnknownNTFetches() {
@@ -442,18 +450,18 @@ void PPU::_spriteEvaluate() {
     // even cycles - writing to secondary OAM
     else {
         // if oamaddr at start of dot 65 is not 0, overflow can occure. In this case, just ignoring next values
-        if (n >= 256) return;
+        if (n >= 64) return;
         u8 tempY = OAM[n * 4];
         // sprite is on the next scanline
         u8 spriteHeight = ppuRegisters.readPpuctrlSpriteSize() ? 16 : 8;
-        if(tempY <= (scanline + 1) && (scanline + 1) < (tempY + spriteHeight)) {
+        if((secondarySlot < 8) && tempY <= (scanline + 1) && (scanline + 1) < (tempY + spriteHeight)) {
             secondaryOAM[secondarySlot * 4 + m] = tempVal;
             // all slots are already filled - setting sprite overflow
             if (secondarySlot == 8) ppuRegisters.writePpustatusSpriteOverflow(1);
-            else if (m == 4) ++secondarySlot;
+            ++m;
+            if(m == 4) { ++secondarySlot; m = 0; ++n; }
         }
-        ++m;
-        if(m == 4) { m = 0; ++n; }
+        else { m = 0; ++n; }
     }
 }
 
