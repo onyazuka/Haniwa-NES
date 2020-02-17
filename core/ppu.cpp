@@ -11,6 +11,7 @@ PPURegistersAccess::PPURegistersAccess(PPU &_ppu)
 PPURegistersAccess& PPURegistersAccess::writePpuctrl(u8 val) {
     // writing base nametable address to ppu's register t
     ppuRegisters.ppuctrl = val;
+    ppu.t ^= (ppu.t & 0b110000000000);
     ppu.t |= (val & 0b11) << 10;
     return *this;
 }
@@ -200,7 +201,7 @@ void PPU::visibleRender() {
         break;
     }
     if(cycle >= 3 && cycle <= 258) {
-        drawPixel(cycle - 3, scanline);
+        if(!renderingDisabled()) drawPixel(cycle - 3, scanline);
     }
     if(((cycle > 1) && (cycle <= 257) && (((cycle - 1) % 8) == 0)) || (cycle == 329 || cycle == 337) ) {
         _renderInternalFedRegisters();
