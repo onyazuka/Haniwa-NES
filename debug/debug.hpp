@@ -2,7 +2,7 @@
 #include <array>
 #include <string>
 #include <fstream>
-#include "core/common.hpp"
+#include "core/include/common.hpp"
 
 typedef uint8_t u8;
 typedef uint32_t u32;

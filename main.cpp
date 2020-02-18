@@ -51,19 +51,19 @@ int main()
 
     std::ofstream ofs("/home/onyazuka/log.txt");
     OstreamLogger* oslogger = new OstreamLogger(std::cout, 0b1110);
-    NES nes("/home/onyazuka/cpp/ProjectsMy/HaniwaNES/roms/Donkey Kong 3 (U) .nes", oslogger);
+    NES nes("/home/onyazuka/cpp/ProjectsMy/HaniwaNES/roms/Super Mario Bros (E).nes", oslogger);
 
     PPU& ppu = nes.getPpu();
     GuiSDL* gui = new GuiSDL(256, 240, &ppu);
     ppu.attach(gui);
 
-    const std::string savePath = "/home/onyazuka/nesSaves/1.hns";
+    const std::string savePath = "/home/onyazuka/nesSaves/IceClimber.hns";
 
-    nes.load(savePath);
+    //nes.load(savePath);
 
     while(true) {
         nes.doInstruction();
-        /*if(nes.getCpu().getInstructionCounter() == 5000000) {
+        /*if(nes.getCpu().getInstructionCounter() == 12500000) {
             nes.save(savePath);
             break;
         }*/

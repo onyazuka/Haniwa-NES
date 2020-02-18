@@ -1,7 +1,7 @@
 #pragma once
 #include <array>
-#include "core/common.hpp"
-#include "core/mappers/mappers.hpp"
+#include "core/include/common.hpp"
+#include "core/include/mappers/mappers.hpp"
 
 const std::array<u32, 64> Palette = {
     4605510, 1626, 1656, 132723, 3474252, 5701646, 5898240, 4259840, 1180160, 5120, 7680, 7680, 5409, 0, 0, 0, 10329501, 19129,

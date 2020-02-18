@@ -8,7 +8,9 @@ NES::NES(const std::string &romFname, Logger* _logger)
       memory{*mapper, ppu},
       cpu{memory, ppu, eventQueue, _logger},
       logger{_logger}
-{ }
+{
+    //ppu.setDrawDebugGrid(true);
+}
 
 // Both save and load guarantee, that CPU's event queue is empty
 void NES::save(const std::string& fname) {

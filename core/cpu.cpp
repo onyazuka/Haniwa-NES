@@ -1,4 +1,4 @@
-#include "cpu.hpp"
+#include "include/cpu.hpp"
 #include <string>
 #include <thread>
 #include <chrono>
@@ -316,13 +316,14 @@ u8 CPU::step() {
     case 0x2A: case 0x26: case 0x36: case 0x2E: case 0x3E: {
         // accumulator
         if (opcode == 0x2A) {
+            u8 res = (regs.A << 1) | regs.carry();
             regs.setCarry(regs.A & 0b10000000);
-            regs.A = ROL(regs.A, 1);
+            regs.A = res;
             regs.setZero(regs.A).setNegative(regs.A);
         }
         // memory
         else {
-            u8 res = ROL(instruction.val8(), 1);
+            u8 res = (instruction.val8() << 1) | regs.carry();
             regs.setCarry(instruction.val8() & 0b10000000);
             memory.write8(instruction.address, res);
             regs.setZero(res).setNegative(res);
@@ -334,13 +335,14 @@ u8 CPU::step() {
     case 0x6A: case 0x66: case 0x76: case 0x6E: case 0x7E: {
         // accumulator
         if(opcode == 0x6A) {
+            u8 res = (regs.A >> 1) | (regs.carry() << 7);
             regs.setCarry(regs.A & 1);
-            regs.A = ROR(regs.A, 1);
+            regs.A = res;
             regs.setZero(regs.A).setNegative(regs.A);
         }
         // memory
         else {
-            u8 res = ROR(instruction.val8(), 1);
+            u8 res = (instruction.val8() >> 1) | (regs.carry() << 7);
             regs.setCarry(instruction.val8() & 1);
             memory.write8(instruction.address, res);
             regs.setZero(res).setNegative(res);

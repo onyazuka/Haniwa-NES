@@ -1,6 +1,6 @@
 #include <cstring>
 #include <iostream>
-#include "ppu.hpp"
+#include "include/ppu.hpp"
 
 PPURegisters::PPURegisters()
     : ppuctrl{0}, ppumask{0}, ppustatus{0}, oamaddr{0}, ppuscroll{0}, ppuaddr{0}, ppudata{0} {}
@@ -49,7 +49,7 @@ PPURegistersAccess& PPURegistersAccess::writePpuscroll(u8 val) {
     if(ppu.w == 0) {
         // setting coarse scroll
         ppu.t ^= (ppu.t & 0b11111);
-        ppu.t |= (val & 0b11111000) >> 3;
+        ppu.t |= ((val & 0b11111000) >> 3);
         // setting fine scroll
         ppu.x = val & 0b111;
         // setting that first write has occured
@@ -159,7 +159,7 @@ Serialization::BytesCount PPU::serialize(std::string &buf) {
                                                    &v, &t, &x, &w, &patternDataShifts16, &attrDataShifts8, &attrDataLatches,
                                                    &ntByte, &attrByte, &lowBgByte, &highBgByte, &OAM, &secondaryOAM, &spritesPatternDataShifts8,
                                                    &spriteAttributeBytes, &spriteXCounters, &spriteLowPatternByte, &spriteHighPatternByte,
-                                                   &frame, &scanline, &cycle, &drawDebugGrid);
+                                                   &frame, &scanline, &cycle);
 }
 
 Serialization::BytesCount PPU::deserialize(const std::string &buf, Serialization::BytesCount offset) {
@@ -179,7 +179,7 @@ Serialization::BytesCount PPU::deserialize(const std::string &buf, Serialization
                                                    &v, &t, &x, &w, &pd16Wr, &ad8Wr, &adlWr,
                                                    &ntByte, &attrByte, &lowBgByte, &highBgByte, &oamWr, &soamWr, &spd8Wr,
                                                    &sadWr, &scWr, &spriteLowPatternByte, &spriteHighPatternByte,
-                                                   &frame, &scanline, &cycle, &drawDebugGrid);
+                                                   &frame, &scanline, &cycle);
 }
 
 void PPU::preRender() {
@@ -272,11 +272,6 @@ void PPU::pixelRender() {
 }
 
 void PPU::drawPixel(u8 xCoord, u8 yCoord) {
-    // drawing grid for debug
-    if(drawDebugGrid && (xCoord % 8 == 0 || yCoord % 8 == 0)) {
-        _image[yCoord * 256 + xCoord] = 0xffffff;
-        return;
-    }
     // get background pixel
     // keeping in mind fine x scroll
     u16 shiftMask16 = 0b1000000000000000 >> x;
@@ -316,6 +311,12 @@ void PPU::drawPixel(u8 xCoord, u8 yCoord) {
     }
     // deciding which pixel to draw
     _image[yCoord * 256 + xCoord] = colorMultiplexer(bckgTransparent, bckgColor, spriteTransparent, spriteColor, spritePriority);
+
+    // drawing grid for debug
+    if(drawDebugGrid && (xCoord % 8 == 0 || yCoord % 8 == 0)) {
+        _image[yCoord * 256 + xCoord] = 0xffffff;
+        return;
+    }
 }
 
 u32 PPU::colorMultiplexer(bool bckgTransparent, u32 bckgColor, bool spriteTransparent, u32 spriteColor, u8 spritePriority) {
@@ -415,7 +416,22 @@ void PPU::_renderInternalFetchByte() {
      // as byte fetching from memory requires 2 ppu cycles, we will get result on next cycle
     case 0: case 2: case 4: case 6: return;
     case 1: ntByte =  memory.read(_getTileAddress()); break;
-    case 3: attrByte = memory.read(_getAttributeAddress()); break;
+    case 3: {
+        u8 tempAttrByte = memory.read(_getAttributeAddress());
+        u8 tileY = (v & 0b1111100000) >> 5;
+        u8 tileX = (v & 0b0000011111);
+
+        // each 2 bits of attribute byte contain info about a 2x2 tile piece
+        bool tileXOdd = (tileX >> 1) & 1;
+        bool tileYOdd = (tileY >> 1) & 1;
+        u8 attrByteOffset = (tileYOdd ? 4 : 0) + (tileXOdd ? 2 : 0);
+
+        attrByte = 0;
+        // attribute higher is stored in bit 1, lower - in bit 0
+        attrByte += (tempAttrByte & (1 << (attrByteOffset + 1))) ? 2 : 0;
+        attrByte += (tempAttrByte & (1 << attrByteOffset)) ? 1 : 0;
+        break;
+    }
     case 5: lowBgByte = memory.read(_getPatternLower(ntByte)); break;
     case 7:
         highBgByte = memory.read(_getPatternLower(ntByte) + 8);
@@ -434,17 +450,8 @@ void PPU::_renderInternalFedRegisters() {
     patternDataShifts16[1] ^= (patternDataShifts16[1] & 0x00FF);
     patternDataShifts16[1] |= lowBgByte;
 
-    // determining the number of tile for which this attrByte is for
-    u8 tileY = (cycle == 329 || cycle == 337) ? (scanline + 1) >> 3 : scanline >> 3;
-    u8 tileX = cycle == 329 ? 0 : cycle == 337 ? 1 : 2 + ((cycle - 9) >> 3);
-
-    // each 2 bits of attribute byte contain info about a 2x2 tile piece
-    bool tileXOdd = (tileX >> 1) & 1;
-    bool tileYOdd = (tileY >> 1) & 1;
-    u8 attrByteOffset = (tileYOdd ? 4 : 0) + (tileXOdd ? 2 : 0);
-
-    attrDataLatches[0] = attrByte & (1 << (attrByteOffset + 1));
-    attrDataLatches[1] = attrByte & (1 << attrByteOffset);
+    attrDataLatches[0] = attrByte & 0b10;
+    attrDataLatches[1] = attrByte & 0b01;
 }
 
 void PPU::_renderInternalBckgShifts() {

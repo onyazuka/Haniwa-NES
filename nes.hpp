@@ -1,7 +1,7 @@
 #pragma once
-#include "core/cpu.hpp"
-#include "core/ppu.hpp"
-#include "core/rom.hpp"
+#include "core/include/cpu.hpp"
+#include "core/include/ppu.hpp"
+#include "core/include/rom.hpp"
 
 class InvalidFileException{};
 

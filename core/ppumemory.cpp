@@ -1,4 +1,4 @@
-#include "ppumemory.hpp"
+#include "include/ppumemory.hpp"
 
 PPUMemory::PPUMemory(MapperInterface &_mapper, Mirroring _mirroring, Logger* _logger)
     : memory{}, mapper{_mapper}, mirroring{_mirroring}, logger{_logger} {}

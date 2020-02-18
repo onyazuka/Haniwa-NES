@@ -1,6 +1,6 @@
 #pragma once
-#include "core/rom.hpp"
-#include "core/mappers/mapperinterface.hpp"
+#include "core/include/rom.hpp"
+#include "core/include/mappers/mapperinterface.hpp"
 #include "log/log.hpp"
 
 // MAPPER 0 (also known as NROM)

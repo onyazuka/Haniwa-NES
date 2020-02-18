@@ -1,7 +1,7 @@
 #pragma once
 #include <optional>
-#include "core/common.hpp"
-#include "core/rom.hpp"
+#include "core/include/common.hpp"
+#include "core/include/rom.hpp"
 #include "log/log.hpp"
 
 // basic class for mappers
