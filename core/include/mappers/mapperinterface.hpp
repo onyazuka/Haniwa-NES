@@ -19,6 +19,7 @@
 class MapperInterface {
 public:
     MapperInterface(ROM& _rom, Logger* logger=nullptr);
+    virtual ~MapperInterface() {}
     virtual std::optional<u8> read8(Address);
     virtual std::optional<bool> write8(Address offset, u8 val);
     virtual std::optional<u16> read16(Address);
@@ -36,3 +37,4 @@ protected:
 };
 
 class InvalidMapperException {};
+

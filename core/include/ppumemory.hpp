@@ -16,6 +16,7 @@ public:
     PPUMemory(MapperInterface& _mapper, Mirroring mirroring, Logger* logger=nullptr);
     u8 read(Address address);
     PPUMemory& write(Address address, u8 val);
+    inline auto& getMemory () { return memory; }
 private:
     Address _fixAddress(Address address);
     Address _applyMirroring(Address address);

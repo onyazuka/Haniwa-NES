@@ -104,12 +104,16 @@ CPU::CPU(Memory &_memory, PPU& _ppu, EventQueue& _eventQueue, Logger* _logger)
 void CPU::run() {
     // PARTY HARD
     while(true) {
-        auto ppuFrameBefore = ppu.currentFrame();
-        emulateCycles([this]() { return step(); });
-        _processEventQueue();
-        auto ppuFrameAfter = ppu.currentFrame();
-        if(ppuFrameBefore != ppuFrameAfter) _frameSync();
+        execInstruction();
     };
+}
+
+void CPU::execInstruction() {
+    auto ppuFrameBefore = ppu.currentFrame();
+    emulateCycles([this]() { return step(); });
+    _processEventQueue();
+    auto ppuFrameAfter = ppu.currentFrame();
+    if(ppuFrameBefore != ppuFrameAfter) _frameSync();
 }
 
 // returns number of cycles instruction elapsed
@@ -117,10 +121,6 @@ u8 CPU::step() {
     Address offset = registers().PC;
     u8 opcode = memory.read8(offset);
     AddressationMode addrMode;
-    if(instructionCounter == 48524) {
-        int i = 0;
-        i += 1;
-    }
     Instruction instruction;
     try {
         addrMode = _getAddressationModeByOpcode(opcode);
@@ -411,6 +411,23 @@ u8 CPU::step() {
     return instruction.cycles;
 }
 
+Serialization::BytesCount CPU::serialize(std::string &buf) {
+    u64 syncTimePointNum = std::chrono::time_point_cast<std::chrono::nanoseconds>(syncTimePoint).time_since_epoch().count();
+    auto& regs = registers();
+    return Serialization::Serializer::serializeAll(buf, &syncTimePointNum, &regs.A, &regs.X, &regs.Y, &regs.PC, &regs.S, &regs.P,
+                                                   &memory.get(), &instructionCounter);
+}
+
+Serialization::BytesCount CPU::deserialize(const std::string &buf, Serialization::BytesCount offset) {
+    auto& regs = registers();
+    u64 syncTimePointNum;
+    auto memWr = wrapArr(memory.get());
+    auto res = Serialization::Deserializer::deserializeAll(buf, offset, &syncTimePointNum, &regs.A, &regs.X, &regs.Y, &regs.PC, &regs.S, &regs.P,
+                                                   &memWr, &instructionCounter);
+    syncTimePoint = std::chrono::time_point<std::chrono::high_resolution_clock, std::chrono::nanoseconds>(std::chrono::nanoseconds(syncTimePointNum));
+    return res;
+}
+
 // we can parse addressation type by opcode(look http://wiki.nesdev.com/w/index.php/CPU_unofficial_opcodes)
 AddressationMode CPU::_getAddressationModeByOpcode(u8 opcode) {
     u8 higher = 0x20 * (opcode / 0x20);
@@ -473,7 +490,7 @@ void CPU::_frameSync() {
     auto sleepDuration = std::chrono::nanoseconds(MaxFrameDurationNs - (curTimePoint - syncTimePoint).count());
     std::this_thread::sleep_for(std::chrono::nanoseconds(sleepDuration));
     syncTimePoint = curTimePoint;
-    if(ppu.currentFrame() == 6) {
+    if(ppu.currentFrame() == 60) {
         int i = 0;
         i += 1;
     }

@@ -3,10 +3,7 @@
 #include <thread>
 #include <fstream>
 #include <SDL2/SDL.h>
-#include "core/cpu.hpp"
-#include "core/ppu.hpp"
-#include "core/rom.hpp"
-
+#include "nes.hpp"
 
 using namespace std;
 
@@ -54,19 +51,23 @@ int main()
 
     std::ofstream ofs("/home/onyazuka/log.txt");
     OstreamLogger* oslogger = new OstreamLogger(std::cout, 0b1110);
-    ROM rom("/home/onyazuka/cpp/ProjectsMy/HaniwaNES/roms/Ice Climber (U) .nes", oslogger);
-    Mapper0 mapper(rom, oslogger);
-    PPUMemory ppuMemory{mapper, rom.header()->mirroring(), oslogger};
-    EventQueue eventQueue;
-    PPU ppu{ppuMemory, eventQueue, oslogger};
-    //ppu.setDrawDebugGrid(true);
-    Memory memory(mapper, ppu);
-    CPU cpu(memory, ppu, eventQueue, oslogger);
+    NES nes("/home/onyazuka/cpp/ProjectsMy/HaniwaNES/roms/Donkey Kong 3 (U) .nes", oslogger);
 
+    PPU& ppu = nes.getPpu();
     GuiSDL* gui = new GuiSDL(256, 240, &ppu);
     ppu.attach(gui);
 
-    cpu.run();
+    const std::string savePath = "/home/onyazuka/nesSaves/1.hns";
+
+    nes.load(savePath);
+
+    while(true) {
+        nes.doInstruction();
+        /*if(nes.getCpu().getInstructionCounter() == 5000000) {
+            nes.save(savePath);
+            break;
+        }*/
+    }
 
     delete oslogger;
     delete gui;

@@ -98,17 +98,18 @@ u8 PPURegistersAccess::readPpudata() const {
     // internal buffer
     static u8 buf;
     u8 readData = ppu.memory.read(ppu.v & ppu.AccessAddressMask);
-    ppu.v += readPpuctrlVramIncrement() ? 32 : 1;
     // when reading from before palettes, return data from internal buffer, but update it
     if(ppu.v < 0x3F00) {
         u8 res = buf;
         buf = readData;
+        ppu.v += readPpuctrlVramIncrement() ? 32 : 1;
         return res;
     }
     // reading here works differently - updating buffer AND returning currently read data
     else {
         // palette
         buf = readData;
+        ppu.v += readPpuctrlVramIncrement() ? 32 : 1;
         return readData;
     }
 }
@@ -149,6 +150,36 @@ void PPU::step() {
 // should last roughly PPUCycle nanoseconds
 void PPU::emulateCycle() {
     step();
+}
+
+Serialization::BytesCount PPU::serialize(std::string &buf) {
+    auto& regs = ppuRegisters.ppuRegisters;
+    return Serialization::Serializer::serializeAll(buf, &regs.ppuctrl, &regs.ppumask, &regs.ppustatus, &regs.oamaddr, &regs.oamdata,
+                                                   &regs.ppuscroll, &regs.ppuaddr, &regs.ppudata, &regs.oamdma, &memory.getMemory(),
+                                                   &v, &t, &x, &w, &patternDataShifts16, &attrDataShifts8, &attrDataLatches,
+                                                   &ntByte, &attrByte, &lowBgByte, &highBgByte, &OAM, &secondaryOAM, &spritesPatternDataShifts8,
+                                                   &spriteAttributeBytes, &spriteXCounters, &spriteLowPatternByte, &spriteHighPatternByte,
+                                                   &frame, &scanline, &cycle, &drawDebugGrid);
+}
+
+Serialization::BytesCount PPU::deserialize(const std::string &buf, Serialization::BytesCount offset) {
+    auto& regs = ppuRegisters.ppuRegisters;
+    using namespace Serialization;
+    auto memWr  = wrapArr(memory.getMemory());
+    auto pd16Wr = wrapArr(patternDataShifts16);
+    auto ad8Wr  = wrapArr(attrDataShifts8);
+    auto adlWr  = wrapArr(attrDataLatches);
+    auto oamWr  = wrapArr(OAM);
+    auto soamWr = wrapArr(secondaryOAM);
+    auto spd8Wr = wrapArr(spritesPatternDataShifts8);
+    auto sadWr  = wrapArr(spriteAttributeBytes);
+    auto scWr   = wrapArr(spriteXCounters);
+    return Serialization::Deserializer::deserializeAll(buf, offset, &regs.ppuctrl, &regs.ppumask, &regs.ppustatus, &regs.oamaddr, &regs.oamdata,
+                                                   &regs.ppuscroll, &regs.ppuaddr, &regs.ppudata, &regs.oamdma, &memWr,
+                                                   &v, &t, &x, &w, &pd16Wr, &ad8Wr, &adlWr,
+                                                   &ntByte, &attrByte, &lowBgByte, &highBgByte, &oamWr, &soamWr, &spd8Wr,
+                                                   &sadWr, &scWr, &spriteLowPatternByte, &spriteHighPatternByte,
+                                                   &frame, &scanline, &cycle, &drawDebugGrid);
 }
 
 void PPU::preRender() {

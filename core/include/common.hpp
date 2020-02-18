@@ -5,6 +5,7 @@
 #include <memory>
 #include <algorithm>
 #include "debug/debug.hpp"
+#include "serialize/serializer.hpp"
 
 typedef int8_t i8;
 typedef int16_t i16;
@@ -118,3 +119,8 @@ T& clearBits(T& val, std::vector<u8> bits) {
 }
 
 u8 reverseByte(u8 b);
+
+template<typename T, std::size_t N>
+Serialization::ArrayWrapper<T> wrapArr(std::array<T,N>& arr) {
+    return Serialization::ArrayWrapper<T>{arr.data(), arr.size()};
+}

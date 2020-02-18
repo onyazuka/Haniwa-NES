@@ -12,6 +12,7 @@
 #include "ppu.hpp"
 #include "eventqueue.hpp"
 #include "log/log.hpp"
+#include "serialize/serializer.hpp"
 
 class UnknownOpcodeException {};
 class UnknownAddressModeException {};
@@ -72,14 +73,22 @@ private:
     std::optional<u8> value8;
 };
 
-class CPU {
+class CPU : public Serialization::Serializable, public Serialization::Deserializable {
 public:
     CPU(Memory& _memory, PPU& _ppu, EventQueue& _eventQueue, Logger* _logger=nullptr);
     inline Memory& getMemory() { return memory; }
     inline Registers& registers() { return _registers; }
+    inline bool eventQueueEmpty() const { return eventQueue.get().empty(); }
+    inline auto getInstructionCounter() const { return instructionCounter; }
     void run();
+    // with all synchonizations
+    void execInstruction();
     inline std::thread runInSeparateThread() { return std::thread([this] { run(); }); }
     u8 step();
+
+    // serialization
+    Serialization::BytesCount serialize(std::string &buf);
+    Serialization::BytesCount deserialize(const std::string &buf, Serialization::BytesCount offset);
 
 private:
     void interrupt(InterruptType, Address nextPC);

@@ -5,6 +5,7 @@
 #include "ppumemory.hpp"
 #include "eventqueue.hpp"
 #include "observer/observer.hpp"
+#include "serialize/serializer.hpp"
 
 struct PPURegisters {
     PPURegisters();
@@ -105,12 +106,15 @@ enum class PPUEvent {
     RerenderMe
 };
 
+class NES;
+
 // making ppu observable so it ask gui for rendering during vblank
-class PPU : public Observable<PPU>{
+class PPU : public Observable<PPU>, public Serialization::Serializable, public Serialization::Deserializable{
 public:
     // only 14 bits out of 15
     const Address AccessAddressMask = 0b11111111111111;
     friend class PPURegistersAccess;
+    friend class NES;
     template<std::size_t N> using Shifts16 = std::array<u16, N>;
     template<typename std::size_t N> using Shifts8 = std::array<u8, N>;
     template<typename std::size_t N> using Latches = std::array<bool, N>;
@@ -131,6 +135,10 @@ public:
     inline bool renderingDisabled() const { return !ppuRegisters.readPpumaskShowBckg() && !ppuRegisters.readPpumaskShowSprites(); }
 
     inline void setDrawDebugGrid(bool val) { drawDebugGrid = val; }
+
+    // serialization
+    Serialization::BytesCount serialize(std::string &buf);
+    Serialization::BytesCount deserialize(const std::string &buf, Serialization::BytesCount offset);
 
 private:
     void preRender();
