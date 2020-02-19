@@ -122,10 +122,6 @@ u8 CPU::step() {
     u8 opcode = memory.read8(offset);
     AddressationMode addrMode;
     Instruction instruction;
-    if(instructionCounter == 9329608) {
-        int i = 0;
-        i += 1;
-    }
     try {
         addrMode = _getAddressationModeByOpcode(opcode);
         instruction = makeInstruction(*this, addrMode, offset);
@@ -496,10 +492,6 @@ void CPU::_frameSync() {
     auto sleepDuration = std::chrono::nanoseconds(MaxFrameDurationNs - (curTimePoint - syncTimePoint).count());
     std::this_thread::sleep_for(std::chrono::nanoseconds(sleepDuration));
     syncTimePoint = curTimePoint;
-    if(ppu.currentFrame() == 60) {
-        int i = 0;
-        i += 1;
-    }
 }
 
 void CPU::_processEventQueue() {

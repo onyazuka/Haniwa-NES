@@ -224,10 +224,6 @@ void PPU::preRender() {
 }
 
 void PPU::visibleRender() {
-    if(scanline == 156) {
-        int i = 0;
-        i += 1;
-    }
     switch(cycle) {
     case 0: return;
     case 1 ... 256:
@@ -284,6 +280,7 @@ void PPU::pixelRender() {
 }
 
 void PPU::drawPixel(u8 xCoord, u8 yCoord) {
+    static const auto& ppuMem = memory.getMemory();
     // get background pixel
     // keeping in mind fine x scroll
     u16 shiftMask16 = 0b1000000000000000 >> x;
@@ -291,31 +288,35 @@ void PPU::drawPixel(u8 xCoord, u8 yCoord) {
     // to make 0 or 1
     u8 unshiftSize8 = 7 - x;
     u8 unshiftSize16 = 15 - x;
-    u32 bckgColor = Palette[memory.read(0x3f00)];
+    // OPTIMIZATION: memory access operation with all its check may by expensive, so, as we access only palette here, we can read memory directly
+    u32 bckgColor = Palette[ppuMem[0x3f00]];
     bool bckgTransparent = true;
     u32 spriteColor = bckgColor;
     bool spriteTransparent = true;
     u8 spritePriority = 0;      // behind background
     if(ppuRegisters.readPpumaskShowBckg() && !(xCoord < 8 && !ppuRegisters.readPpumaskShowBckgLeftmost8())) {
+        //u8 bckgPaletteInnerIndex = ((patternDataShifts16[0] & (1 << (15 - x))) >> (14 - x)) | ((patternDataShifts16[1] & (1 << (15 - x))) >> (15 - x));
+        //u8 bckgPaletteNumber = ((attrDataShifts8[0] & (1 << (7 - x))) >> (6 - x)) | ((attrDataShifts8[1] & (1 << (7 - x))) >> (7 - x));
         u8 bckgPaletteInnerIndex = (((patternDataShifts16[0] & shiftMask16) >> unshiftSize16) << 1) | ((patternDataShifts16[1] & shiftMask16) >> unshiftSize16);
         u8 bckgPaletteNumber = (((attrDataShifts8[0] & shiftMask8) >> unshiftSize8) << 1) | ((attrDataShifts8[1] & shiftMask8) >> unshiftSize8);
         Address bckgPaletteAddress = 0x3F00 + (bckgPaletteNumber << 2) + bckgPaletteInnerIndex;
-        bckgColor = Palette[memory.read(bckgPaletteAddress)];
-        bckgTransparent = (bckgPaletteAddress % 4 == 0);
+        bckgColor = Palette[ppuMem[bckgPaletteAddress]];
+        bckgTransparent = !(bckgPaletteAddress & 0b11);
     }
 
+    bool showSpriteHere = ppuRegisters.readPpumaskShowSprites() && !(xCoord < 8 && !ppuRegisters.readPpumaskShowSpritesLeftmost8());
     // get sprite pixel
-    for(std::size_t i = 0; i < spriteXCounters.size(); ++i) {
-        // sprite is active
-        if (spriteXCounters[i] == 0 && (ppuRegisters.readPpumaskShowSprites() && !(xCoord < 8 && !ppuRegisters.readPpumaskShowSpritesLeftmost8()))) {
+    for(u8 i = 0; i < spriteXCounters.size(); ++i) {
+        // sprite is active if its counter is from 0(activated) till -7(last pixel)
+        if ((spriteXCounters[i] <= xCoord) && (xCoord <= (spriteXCounters[i] + 8))  && showSpriteHere) {
             // has some data
             // if already has some not transparent pixel, skipping others
-            if (spriteTransparent && (spritesPatternDataShifts8[i * 2] != 0 || spritesPatternDataShifts8[i * 2 + 1] != 0)) {
+            if (spriteTransparent) {
                 u8 spritePaletteInnerIndex = ((spritesPatternDataShifts8[i * 2]  & 0b10000000 ? 1 : 0) << 1) + (spritesPatternDataShifts8[i * 2 + 1] & 0b10000000 ? 1 : 0);
                 u8 spritePaletteNumber = spriteAttributeBytes[i] & 0b11;
                 Address spritePaletteAddress = 0x3F10 + (spritePaletteNumber << 2) + spritePaletteInnerIndex;
-                spriteTransparent = (spritePaletteAddress % 4 == 0);
-                spriteColor = Palette[memory.read(spritePaletteAddress)];
+                spriteTransparent = !(spritePaletteAddress & 0b11);
+                spriteColor = Palette[ppuMem[spritePaletteAddress]];
                 spritePriority = (spriteAttributeBytes[i] & 0b00100000) >> 5;
             }
             // shifting
@@ -326,7 +327,6 @@ void PPU::drawPixel(u8 xCoord, u8 yCoord) {
                 ppuRegisters.writePpustatusSprite0Hit(1);
             }
         }
-        else --spriteXCounters[i];
     }
 
     // deciding which pixel to draw

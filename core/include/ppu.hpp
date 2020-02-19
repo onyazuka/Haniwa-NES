@@ -118,7 +118,7 @@ public:
     template<std::size_t N> using Shifts16 = std::array<u16, N>;
     template<typename std::size_t N> using Shifts8 = std::array<u8, N>;
     template<typename std::size_t N> using Latches = std::array<bool, N>;
-    template<typename std::size_t N> using Counters = std::array<u8, N>;
+    template<typename std::size_t N> using Counters = std::array<i16, N>;
     template<typename std::size_t N> using Bytes = std::array<u8, N>;
 
     PPU(PPUMemory& _memory, EventQueue& eventQueue, Logger* logger = nullptr);

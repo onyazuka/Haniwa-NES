@@ -54,12 +54,12 @@ int main()
     NES nes("/home/onyazuka/cpp/ProjectsMy/HaniwaNES/roms/Excitebike (E).nes", oslogger);
 
     PPU& ppu = nes.getPpu();
-    /*GuiSDL* gui = new GuiSDL(256, 240, &ppu);
-    ppu.attach(gui);*/
+    GuiSDL* gui = new GuiSDL(256, 240, &ppu);
+    ppu.attach(gui);
 
     const std::string savePath = "/home/onyazuka/nesSaves/Excitebike.hns";
 
-    nes.load(savePath);
+    //nes.load(savePath);
 
     while(true) {
         nes.doInstruction();
@@ -70,7 +70,7 @@ int main()
     }
 
     delete oslogger;
-   // delete gui;
+    delete gui;
 
     return 0;
 }
