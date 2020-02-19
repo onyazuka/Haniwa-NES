@@ -133,6 +133,7 @@ public:
     // I should not read ppustatus via method, because reading it clears vblank
     inline bool isDataChangeForbidden() const { return (!(ppuRegisters.ppuRegisters.ppustatus & 0b10000000) && (ppuRegisters.readPpumaskShowBckg() || ppuRegisters.readPpumaskShowSprites())); }
     inline bool renderingDisabled() const { return !ppuRegisters.readPpumaskShowBckg() && !ppuRegisters.readPpumaskShowSprites(); }
+    bool isItSprite0(u8 secondaryOAMIndex) const;
 
     inline void setDrawDebugGrid(bool val) { drawDebugGrid = val; }
 

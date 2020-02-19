@@ -1,4 +1,4 @@
-#include "mappers.hpp"
+#include "core/include/mappers/mappers.hpp"
 
 Uptr<MapperInterface> makeMapper(int number, ROM& rom, Logger* logger) {
     switch(number) {

@@ -122,6 +122,10 @@ u8 CPU::step() {
     u8 opcode = memory.read8(offset);
     AddressationMode addrMode;
     Instruction instruction;
+    if(instructionCounter == 9329608) {
+        int i = 0;
+        i += 1;
+    }
     try {
         addrMode = _getAddressationModeByOpcode(opcode);
         instruction = makeInstruction(*this, addrMode, offset);
@@ -399,7 +403,7 @@ u8 CPU::step() {
         instruction.cycles = 2; break;
     }
     // IT SHOULD BE HERE: trying to not trigger unnecessary read operation
-    if(logger) logger->log(LogLevel::Debug, "[" + std::to_string(instructionCounter) + "]:" + getPrettyInstruction(opcode, addrMode, offset, instruction));
+    //if(logger) logger->log(LogLevel::Debug, "[" + std::to_string(instructionCounter) + "]:" + getPrettyInstruction(opcode, addrMode, offset, instruction));
     if (nextUnconditionalAddress) regs.PC = nextUnconditionalAddress;
     else if (nextBranchAddress) {
         regs.PC = nextBranchAddress;
@@ -534,6 +538,7 @@ void CPU::oamDmaWrite() {
 }
 
 std::string getPrettyInstruction(u8 opcode, AddressationMode addrMode, Address curAddress, Instruction instruction) {
+
     std::string hexVal8 = instruction.hasVal8() ? numToHexStr(instruction.val8(), 2) : "UNKNOWN";
     std::string hexAddr8 = numToHexStr(instruction.address, 2);
     std::string hexAddr16 = numToHexStr(instruction.address, 4);

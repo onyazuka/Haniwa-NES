@@ -27,10 +27,6 @@ u8 Memory::read8(Address offset) {
 }
 
 Memory& Memory::write8(Address offset, u8 val) {
-    if(offset == 0x0345) {
-        int i = 0;
-        i += 1;
-    }
     if(isInPPURegisters(offset)) {
         auto& ppuregs = ppu.accessPPURegisters();
         switch(offset) {

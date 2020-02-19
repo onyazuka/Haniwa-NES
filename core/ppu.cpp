@@ -152,6 +152,14 @@ void PPU::emulateCycle() {
     step();
 }
 
+/*
+    Checks if secondaryOAM[secondaryOAMIndex] is sprite zero(OAM[0]-OAM[3])
+*/
+bool PPU::isItSprite0(u8 secondaryOAMIndex) const {
+    return (secondaryOAM[secondaryOAMIndex] == OAM[0] && secondaryOAM[secondaryOAMIndex + 1] == OAM[1] &&
+            secondaryOAM[secondaryOAMIndex + 2] == OAM[2] && secondaryOAM[secondaryOAMIndex + 3] == OAM[3]);
+}
+
 Serialization::BytesCount PPU::serialize(std::string &buf) {
     auto& regs = ppuRegisters.ppuRegisters;
     return Serialization::Serializer::serializeAll(buf, &regs.ppuctrl, &regs.ppumask, &regs.ppustatus, &regs.oamaddr, &regs.oamdata,
@@ -216,6 +224,10 @@ void PPU::preRender() {
 }
 
 void PPU::visibleRender() {
+    if(scanline == 156) {
+        int i = 0;
+        i += 1;
+    }
     switch(cycle) {
     case 0: return;
     case 1 ... 256:
@@ -235,7 +247,7 @@ void PPU::visibleRender() {
         break;
     }
     if(cycle >= 3 && cycle <= 258) {
-        if(!renderingDisabled()) drawPixel(cycle - 3, scanline);
+        drawPixel(cycle - 3, scanline);
         _renderInternalBckgShifts();
     }
     if(cycle > 329 && cycle <= 337) _renderInternalBckgShifts();
@@ -279,18 +291,23 @@ void PPU::drawPixel(u8 xCoord, u8 yCoord) {
     // to make 0 or 1
     u8 unshiftSize8 = 7 - x;
     u8 unshiftSize16 = 15 - x;
-    u8 bckgPaletteInnerIndex = (((patternDataShifts16[0] & shiftMask16) >> unshiftSize16) << 1) | ((patternDataShifts16[1] & shiftMask16) >> unshiftSize16);
-    u8 bckgPaletteNumber = (((attrDataShifts8[0] & shiftMask8) >> unshiftSize8) << 1) | ((attrDataShifts8[1] & shiftMask8) >> unshiftSize8);
-    Address bckgPaletteAddress = 0x3F00 + (bckgPaletteNumber << 2) + bckgPaletteInnerIndex;
-    u32 bckgColor = Palette[memory.read(bckgPaletteAddress)];
-    u32 spriteColor = 0;
-    bool bckgTransparent = bckgPaletteAddress % 4 == 0;
+    u32 bckgColor = Palette[memory.read(0x3f00)];
+    bool bckgTransparent = true;
+    u32 spriteColor = bckgColor;
     bool spriteTransparent = true;
     u8 spritePriority = 0;      // behind background
+    if(ppuRegisters.readPpumaskShowBckg() && !(xCoord < 8 && !ppuRegisters.readPpumaskShowBckgLeftmost8())) {
+        u8 bckgPaletteInnerIndex = (((patternDataShifts16[0] & shiftMask16) >> unshiftSize16) << 1) | ((patternDataShifts16[1] & shiftMask16) >> unshiftSize16);
+        u8 bckgPaletteNumber = (((attrDataShifts8[0] & shiftMask8) >> unshiftSize8) << 1) | ((attrDataShifts8[1] & shiftMask8) >> unshiftSize8);
+        Address bckgPaletteAddress = 0x3F00 + (bckgPaletteNumber << 2) + bckgPaletteInnerIndex;
+        bckgColor = Palette[memory.read(bckgPaletteAddress)];
+        bckgTransparent = (bckgPaletteAddress % 4 == 0);
+    }
+
     // get sprite pixel
     for(std::size_t i = 0; i < spriteXCounters.size(); ++i) {
         // sprite is active
-        if (spriteXCounters[i] == 0) {
+        if (spriteXCounters[i] == 0 && (ppuRegisters.readPpumaskShowSprites() && !(xCoord < 8 && !ppuRegisters.readPpumaskShowSpritesLeftmost8()))) {
             // has some data
             // if already has some not transparent pixel, skipping others
             if (spriteTransparent && (spritesPatternDataShifts8[i * 2] != 0 || spritesPatternDataShifts8[i * 2 + 1] != 0)) {
@@ -304,11 +321,14 @@ void PPU::drawPixel(u8 xCoord, u8 yCoord) {
             // shifting
             spritesPatternDataShifts8[i * 2] <<= 1;
             spritesPatternDataShifts8[i * 2 + 1] <<= 1;
+            // sprite 0 hit
+            if (isItSprite0(i) && secondaryOAM[i * 4 + 3] != 255 && !bckgTransparent && !spriteTransparent && !(ppuRegisters.ppuRegisters.ppustatus & 0b01000000)) {
+                ppuRegisters.writePpustatusSprite0Hit(1);
+            }
         }
         else --spriteXCounters[i];
-        // sprite 0 hit
-        if(i == 0 && !bckgTransparent && !spriteTransparent) ppuRegisters.writePpustatusSprite0Hit(1);
     }
+
     // deciding which pixel to draw
     _image[yCoord * 256 + xCoord] = colorMultiplexer(bckgTransparent, bckgColor, spriteTransparent, spriteColor, spritePriority);
 
@@ -480,6 +500,8 @@ void PPU::_spriteEvaluateClearSecondaryOAM() {
 
 // filling secondary OAM for NEXT scanline
 void PPU::_spriteEvaluate() {
+    // sprite evaluation not occures if rendering is disabled
+    if(renderingDisabled()) return;
     // OAM[n*4 + m] - access to OAM sprite
     static u8 m = 0;
     static u16 n = 0;

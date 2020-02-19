@@ -1,4 +1,4 @@
-#include "mapperinterface.hpp"
+#include "core/include/mappers/mapperinterface.hpp"
 
 MapperInterface::MapperInterface(ROM& _rom, Logger* _logger)
     : rom{_rom}, logger{_logger} {}

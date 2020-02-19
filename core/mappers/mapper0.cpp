@@ -1,4 +1,4 @@
-#include "core/mappers/mapper0.hpp"
+#include "core/include/mappers/mapper0.hpp"
 
 Mapper0::Mapper0(ROM& _rom, Logger* _logger)
     : MapperInterface{_rom, _logger}, sz16kb{rom.header()->PRGROMSize16Kb()} {
