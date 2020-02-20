@@ -10,6 +10,18 @@ u8 PPUMemory::read(Address address) {
     return memory[address];
 }
 
+u8 PPUMemory::readCHR(Address address) {
+    return mapper.readCHR(address).value();
+}
+
+u8 PPUMemory::readDirectly(Address address) {
+    return memory[_fixAddress(address)];
+}
+
+u8 PPUMemory::readDirectlyWithoutChecks(Address address) {
+    return memory[address];
+}
+
 PPUMemory& PPUMemory::write(Address address, u8 val) {
     auto optionalRes = mapper.writeCHR(address, val);
     if (optionalRes) return *this;
@@ -30,6 +42,11 @@ Address PPUMemory::_applyMirroring(Address address) {
     switch (mirroring) {
     case Mirroring::Horizontal: if (address & 0x400) return address - 0x400; else return address;
     case Mirroring::Vertical: if(address & 0x800) return address - 0x800; else return address;
-    default: if(logger) logger->log(LogLevel::Error, "PPUMemory::_applyMirroring() - unknown mirroring type");  throw UnknownMirroringType{};
+#ifdef DEBUG
+    default:
+        if(logger) logger->log(LogLevel::Error, "PPUMemory::_applyMirroring() - unknown mirroring type");  throw UnknownMirroringType{};
+#else
+    default: throw UnknownMirroringType{};
+#endif
     }
 }

@@ -216,11 +216,7 @@ void PPU::preRender() {
     if(cycle == 329 || cycle == 337) {
         _renderInternalFedRegisters();
     }
-    // cycle 340 can be skipped(in 'step' function)
     // unknown NT fetches
-    if(cycle >= 337 && cycle <= 340) {
-        _renderInternalUnknownNTFetches();
-    }
 }
 
 void PPU::visibleRender() {
@@ -239,7 +235,7 @@ void PPU::visibleRender() {
         _renderInternalFetchByte();
         break;
     case 337 ... 340:
-        _renderInternalUnknownNTFetches();
+        // unknown NT fetches
         break;
     }
     if(cycle >= 3 && cycle <= 258) {
@@ -286,26 +282,19 @@ void PPU::drawBackgroundPixel(u8 xCoord, u8 yCoord) {
     // keeping in mind fine x scroll
     u16 shiftMask16 = 0b1000000000000000 >> x;
     u8  shiftMask8  = 0b10000000 >> x;
-    // to make 0 or 1
-    u8 unshiftSize8 = 7 - x;
-    u8 unshiftSize16 = 15 - x;
     // OPTIMIZATION: memory access operation with all its check may by expensive, so, as we access only palette here, we can read memory directly
     u32 bckgColor = Palette[ppuMem[0x3f00]];
     bool bckgTransparent = true;
     if(ppuRegisters.readPpumaskShowBckg() && !(xCoord < 8 && !ppuRegisters.readPpumaskShowBckgLeftmost8())) {
-        //u8 bckgPaletteInnerIndex = ((patternDataShifts16[0] & (1 << (15 - x))) >> (14 - x)) | ((patternDataShifts16[1] & (1 << (15 - x))) >> (15 - x));
-        //u8 bckgPaletteNumber = ((attrDataShifts8[0] & (1 << (7 - x))) >> (6 - x)) | ((attrDataShifts8[1] & (1 << (7 - x))) >> (7 - x));
-        u8 bckgPaletteInnerIndex = (((patternDataShifts16[0] & shiftMask16) >> unshiftSize16) << 1) | ((patternDataShifts16[1] & shiftMask16) >> unshiftSize16);
-        u8 bckgPaletteNumber = (((attrDataShifts8[0] & shiftMask8) >> unshiftSize8) << 1) | ((attrDataShifts8[1] & shiftMask8) >> unshiftSize8);
+        u8 bckgPaletteInnerIndex = (patternDataShifts16[0] & shiftMask16 ? 2 : 0) + ((patternDataShifts16[1] & shiftMask16) ? 1 : 0);
+        u8 bckgPaletteNumber = (attrDataShifts8[0] & shiftMask8 ? 2 : 0) + (attrDataShifts8[1] & shiftMask8 ? 1 : 0);
         Address bckgPaletteAddress = 0x3F00 + (bckgPaletteNumber << 2) + bckgPaletteInnerIndex;
         bckgColor = Palette[ppuMem[bckgPaletteAddress]];
         bckgTransparent = !(bckgPaletteAddress & 0b11);
     }
-    _image[yCoord * 256 + xCoord] = bckgColor;
+    _image[(yCoord << 8) + xCoord] = bckgColor;
     // clearing map here - true means transparent
-    ppuMap.setBckg(xCoord, true);
     ppuMap.setSprite(xCoord, true);
-    ppuMap.setSpritePriority(xCoord, true);
     ppuMap.setBckg(xCoord, bckgTransparent);
 
     // drawing grid for debug
@@ -325,7 +314,8 @@ void PPU::drawSpritePixel(u8 yCoord) {
 
     if(spriteXCoord >= 256) return;
 
-    u8 spritePaletteInnerIndex = ((spritesPatternDataShifts8[i * 2]  & 0b10000000 ? 1 : 0) << 1) + (spritesPatternDataShifts8[i * 2 + 1] & 0b10000000 ? 1 : 0);
+    bool bckgTransparent = ppuMap.testBckg(spriteXCoord);
+    u8 spritePaletteInnerIndex = (spritesPatternDataShifts8[i * 2] & 0b10000000 ? 2 : 0) + (spritesPatternDataShifts8[i * 2 + 1] & 0b10000000 ? 1 : 0);
     u8 spritePaletteNumber = spriteAttributeBytes[i] & 0b11;
     Address spritePaletteAddress = 0x3F10 + (spritePaletteNumber << 2) + spritePaletteInnerIndex;
     bool spriteTransparent = !(spritePaletteAddress & 0b11);
@@ -334,16 +324,15 @@ void PPU::drawSpritePixel(u8 yCoord) {
 
     // if not have or have a transparent sprite here - override
     if(ppuMap.testSprite(spriteXCoord)) {
-        _image[yCoord * 256 + spriteXCoord] = colorMultiplexer(ppuMap.testBckg(spriteXCoord), _image[yCoord * 256 + spriteXCoord], spriteTransparent, spriteColor, spritePriority);
+        _image[yCoord * 256 + spriteXCoord] = colorMultiplexer(bckgTransparent, _image[(yCoord << 8) + spriteXCoord], spriteTransparent, spriteColor, spritePriority);
     }
 
     ppuMap.setSprite(spriteXCoord, spriteTransparent);
-    ppuMap.setSpritePriority(spriteXCoord, spritePriority);
     spritesPatternDataShifts8[i * 2] <<= 1;
     spritesPatternDataShifts8[i * 2 + 1] <<= 1;
 
     // sprite 0 hit
-    if (isItSprite0(i) && spriteXCoord != 255 && !ppuMap.testBckg(spriteXCoord) && !spriteTransparent && !(ppuRegisters.ppuRegisters.ppustatus & 0b01000000)) {
+    if (!(ppuRegisters.ppuRegisters.ppustatus & 0b01000000) && spriteXCoord != 255 && !bckgTransparent && !spriteTransparent && isItSprite0(i)) {
         ppuRegisters.writePpustatusSprite0Hit(1);
     }
 }
@@ -440,13 +429,15 @@ void PPU::_restoreYScrollFromT() {
     Should be called in some render cycles. Fetches different bytes depending on cycle.
 */
 void PPU::_renderInternalFetchByte() {
-    u8 remainder = (cycle - 1) % 8;
+    // why read twice if we can read once?
+    static Address lowBgByteAddr = 0;
+    u8 remainder = (cycle - 1) & 7;
     switch(remainder) {
      // as byte fetching from memory requires 2 ppu cycles, we will get result on next cycle
     case 0: case 2: case 4: case 6: return;
-    case 1: ntByte =  memory.read(_getTileAddress()); break;
+    case 1: ntByte =  memory.readDirectly(_getTileAddress()); break;
     case 3: {
-        u8 tempAttrByte = memory.read(_getAttributeAddress());
+        u8 tempAttrByte = memory.readDirectly(_getAttributeAddress());
         u8 tileY = (v & 0b1111100000) >> 5;
         u8 tileX = (v & 0b0000011111);
 
@@ -461,9 +452,12 @@ void PPU::_renderInternalFetchByte() {
         attrByte += (tempAttrByte & (1 << attrByteOffset)) ? 1 : 0;
         break;
     }
-    case 5: lowBgByte = memory.read(_getPatternLower(ntByte)); break;
+    case 5:
+        lowBgByteAddr = _getPatternLower(ntByte);
+        lowBgByte = memory.readCHR(lowBgByteAddr);
+        break;
     case 7:
-        highBgByte = memory.read(_getPatternLower(ntByte) + 8);
+        highBgByte = memory.readCHR(lowBgByteAddr + 8);
         if(cycle != 256) _coarseXIncrement();
         // y is incremented only at dot 256 of each scanline
         else _yIncrement();
@@ -491,13 +485,6 @@ void PPU::_renderInternalBckgShifts() {
     // setting lower attribute bit from appropriate latch
     attrDataShifts8[0] |= attrDataLatches[0];
     attrDataShifts8[1] |= attrDataLatches[1];
-}
-
-void PPU::_renderInternalUnknownNTFetches() {
-    if (cycle == 338 || cycle == 340) {
-        // read and discard
-        memory.read(_getTileAddress());
-    }
 }
 
 void PPU::_spriteEvaluateClearSecondaryOAM() {
@@ -548,16 +535,17 @@ void PPU::_spriteEvaluate() {
 
 // fetching data and writing it to the temporary registers
 void PPU::_spriteEvaluateFetchData() {
-    u8 remainder = (cycle - 1) % 8;
-    u8 spriteIndex = (cycle - 257) / 8;
+    static Address pbAddr = 0;
+    u8 remainder = (cycle - 1) & 7;
+    u8 spriteIndex = (cycle - 257) >> 3;
     switch(remainder) {
      // as byte fetching from memory requires 2 ppu cycles, we will get result on next cycle
     case 0: case 2: case 4: case 6: return;
-    // garbage reads
-    case 1: memory.read(_getTileAddress()); break;
-    case 3: memory.read(_getAttributeAddress()); break;
-    case 5: spriteLowPatternByte = memory.read(_getPatternLowerOAM(secondaryOAM[spriteIndex * 4 + 1])); break;
-    case 7: spriteHighPatternByte = memory.read(_getPatternLowerOAM(secondaryOAM[spriteIndex * 4 + 1]) + 8); break;
+    // garbage reads NOT NEEDED
+    case 1: break;
+    case 3: break;
+    case 5: pbAddr = _getPatternLowerOAM(secondaryOAM[spriteIndex * 4 + 1]); spriteLowPatternByte = memory.read(pbAddr); break;
+    case 7: spriteHighPatternByte = memory.read(pbAddr + 8); break;
     }
 }
 

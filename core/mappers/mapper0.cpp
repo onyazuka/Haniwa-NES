@@ -17,7 +17,9 @@ bool Mapper0::checkAddress(Address address) const {
 }
 
 Address Mapper0::addressFix(Address address) const {
+#ifdef DEBUG
     if(address < 0x8000) if(logger) logger->log(LogLevel::Warning, "Attempt to access mapper0 with incorrect address " + std::to_string(address));
+ #endif
     if(sz16kb == 1) return address % 0x4000;
     else return address - 0x8000;        // 2
 }

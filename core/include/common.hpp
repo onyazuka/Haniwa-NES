@@ -7,6 +7,9 @@
 #include "debug/debug.hpp"
 #include "serialize/serializer.hpp"
 
+// uncomment this for debug
+//#define DEBUG
+
 typedef int8_t i8;
 typedef int16_t i16;
 typedef uint8_t u8;
@@ -43,6 +46,32 @@ enum class AddressationMode {
     Indirect,
     IndexedIndirect,
     IndirectIndexed
+};
+
+// aliases
+const AddressationMode IML = AddressationMode::Implied;
+const AddressationMode ACC = AddressationMode::Accumulator;
+const AddressationMode IMM = AddressationMode::Immediate;
+const AddressationMode ZP0 = AddressationMode::ZeroPage;
+const AddressationMode ZPX = AddressationMode::ZeroPageX;
+const AddressationMode ZPY = AddressationMode::ZeroPageY;
+const AddressationMode REL = AddressationMode::Relative;
+const AddressationMode ABS = AddressationMode::Absolute;
+const AddressationMode ABX = AddressationMode::AbsoluteX;
+const AddressationMode ABY = AddressationMode::AbsoluteY;
+const AddressationMode IND = AddressationMode::Indirect;
+const AddressationMode IIR = AddressationMode::IndexedIndirect;
+const AddressationMode IIX = AddressationMode::IndirectIndexed;
+
+const std::array<AddressationMode, 256> AddrModesByOpcode = {
+    IML, IIR, IML, IIR, ZP0, ZP0, ZP0, ZP0, IML, IMM, IML, IMM, ABS, ABS, ABS, ABS, REL, IIX, IML, IIX, ZPX, ZPX, ZPX, ZPX, IML, ABY, IML, ABY, ABX, ABX, ABX, ABX,
+    ABS, IIR, IML, IIR, ZP0, ZP0, ZP0, ZP0, IML, IMM, IML, IMM, ABS, ABS, ABS, ABS, REL, IIX, IML, IIX, ZPX, ZPX, ZPX, ZPX, IML, ABY, IML, ABY, ABX, ABX, ABX, ABX,
+    IML, IIR, IML, IIR, ZP0, ZP0, ZP0, ZP0, IML, IMM, IML, IMM, ABS, ABS, ABS, ABS, REL, IIX, IML, IIX, ZPX, ZPX, ZPX, ZPX, IML, ABY, IML, ABY, ABX, ABX, ABX, ABX,
+    IML, IIR, IML, IIR, ZP0, ZP0, ZP0, ZP0, IML, IMM, IML, IMM, IND, ABS, ABS, ABS, REL, IIX, IML, IIX, ZPX, ZPX, ZPX, ZPX, IML, ABY, IML, ABY, ABX, ABX, ABX, ABX,
+    IMM, IIR, IMM, IIR, ZP0, ZP0, ZP0, ZP0, IML, IMM, IML, IMM, ABS, ABS, ABS, ABS, REL, IIX, IML, IIX, ZPX, ZPX, ZPY, ZPY, IML, ABY, IML, ABY, ABX, ABX, ABY, ABY,
+    IMM, IIR, IMM, IIR, ZP0, ZP0, ZP0, ZP0, IML, IMM, IML, IMM, ABS, ABS, ABS, ABS, REL, IIX, IML, IIX, ZPX, ZPX, ZPY, ZPY, IML, ABY, IML, ABY, ABX, ABX, ABY, ABY,
+    IMM, IIR, IMM, IIR, ZP0, ZP0, ZP0, ZP0, IML, IMM, IML, IMM, ABS, ABS, ABS, ABS, REL, IIX, IML, IIX, ZPX, ZPX, ZPX, ZPX, IML, ABY, IML, ABY, ABX, ABX, ABX, ABX,
+    IMM, IIR, IMM, IIR, ZP0, ZP0, ZP0, ZP0, IML, IMM, IML, IMM, ABS, ABS, ABS, ABS, REL, IIX, IML, IIX, ZPX, ZPX, ZPX, ZPX, IML, ABY, IML, ABY, ABX, ABX, ABX, ABX,
 };
 
 enum class InterruptType {

@@ -70,7 +70,7 @@ int main()
     }
 
     delete oslogger;
-    delete gui;
+    //delete gui;
 
     return 0;
 }

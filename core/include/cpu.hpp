@@ -101,7 +101,6 @@ private:
     inline CPU& pop16() { registers().S += 2; return *this; }
     u8 top8() { return memory.read8(0x100 + registers().S + 1); }
     u16 top16() { return memory.read16(0x100 + registers().S + 1); }
-    AddressationMode _getAddressationModeByOpcode(u8 opcode);
     void _frameSync();
     void _processEventQueue();
 

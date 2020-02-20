@@ -123,7 +123,7 @@ u8 CPU::step() {
     AddressationMode addrMode;
     Instruction instruction;
     try {
-        addrMode = _getAddressationModeByOpcode(opcode);
+        addrMode = AddrModesByOpcode[opcode];
         instruction = makeInstruction(*this, addrMode, offset);
     }
     catch (UnknownOpcodeException) {
@@ -399,7 +399,9 @@ u8 CPU::step() {
         instruction.cycles = 2; break;
     }
     // IT SHOULD BE HERE: trying to not trigger unnecessary read operation
-    //if(logger) logger->log(LogLevel::Debug, "[" + std::to_string(instructionCounter) + "]:" + getPrettyInstruction(opcode, addrMode, offset, instruction));
+#ifdef DEBUG
+    if(logger) logger->log(LogLevel::Debug, "[" + std::to_string(instructionCounter) + "]:" + getPrettyInstruction(opcode, addrMode, offset, instruction));
+#endif
     if (nextUnconditionalAddress) regs.PC = nextUnconditionalAddress;
     else if (nextBranchAddress) {
         regs.PC = nextBranchAddress;
@@ -428,42 +430,6 @@ Serialization::BytesCount CPU::deserialize(const std::string &buf, Serialization
                                                    &memWr, &instructionCounter);
     syncTimePoint = std::chrono::time_point<std::chrono::high_resolution_clock, std::chrono::nanoseconds>(std::chrono::nanoseconds(syncTimePointNum));
     return res;
-}
-
-// we can parse addressation type by opcode(look http://wiki.nesdev.com/w/index.php/CPU_unofficial_opcodes)
-AddressationMode CPU::_getAddressationModeByOpcode(u8 opcode) {
-    u8 higher = 0x20 * (opcode / 0x20);
-    u8 lower = opcode - higher;
-    switch (lower) {
-    case 0x00:
-        if(higher == 0x20) return AddressationMode::Absolute;
-        if(higher >= 0x80) return AddressationMode::Immediate;
-        else return AddressationMode::Implied;
-    case 0x02:
-        if(higher <= 0x60) return AddressationMode::Implied;
-        else return AddressationMode::Immediate;
-    case 0x01: case 0x03: return AddressationMode::IndexedIndirect;
-    case 0x04: case 0x05: case 0x06: case 0x07: return AddressationMode::ZeroPage;
-    case 0x08: case 0x0A: case 0x12: case 0x18: case 0x1A: return AddressationMode::Implied;
-    case 0x09: case 0x0B: return AddressationMode::Immediate;
-    case 0x0C:
-        if (higher == 0x60) return AddressationMode::Indirect;
-        else return AddressationMode::Absolute;
-    case 0x0D: case 0x0E: case 0x0F: return AddressationMode::Absolute;
-    case 0x10: return AddressationMode::Relative;
-    case 0x11: case 0x13: return AddressationMode::IndirectIndexed;
-    case 0x14: case 0x15: return AddressationMode::ZeroPageX;
-    case 0x16: case 0x17:
-        if(higher == 0x80 || higher == 0xA0) return AddressationMode::ZeroPageY;
-        else return AddressationMode::ZeroPageX;
-    case 0x19: case 0x1B: return AddressationMode::AbsoluteY;
-    case 0x1C: case 0x1D: return AddressationMode::AbsoluteX;
-    case 0x1E: case 0x1F:
-        if(higher == 0x80 || higher == 0xA0) return AddressationMode::AbsoluteY;
-        else return AddressationMode::AbsoluteX;
-    default:
-        throw UnknownOpcodeException{};
-    }
 }
 
 /*

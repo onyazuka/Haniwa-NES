@@ -110,14 +110,11 @@ class PPUDrawnMap {
 public:
     inline void setBckg(u8 i, bool val) { bckgMap[i] = val; }
     inline void setSprite(u8 i, bool val) { spriteMap[i] = val; }
-    inline void setSpritePriority(u8 i, bool val) { spritePriorityMap[i] = val; }
     inline bool testBckg(u8 i) { return bckgMap[i]; }
     inline bool testSprite(u8 i) { return spriteMap[i]; }
-    inline bool testSpritePriority(u8 i) { return spritePriorityMap[i]; }
 private:
     std::array<bool, 256> bckgMap;
     std::array<bool, 256> spriteMap;
-    std::array<bool, 256> spritePriorityMap;
 };
 
 class NES;
@@ -179,7 +176,6 @@ private:
     void _renderInternalFetchByte();
     void _renderInternalFedRegisters();
     void _renderInternalBckgShifts();
-    void _renderInternalUnknownNTFetches();
     void _spriteEvaluateClearSecondaryOAM();
     void _spriteEvaluate();
     void _spriteEvaluateFetchData();

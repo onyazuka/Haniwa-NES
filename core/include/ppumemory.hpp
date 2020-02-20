@@ -15,6 +15,10 @@ class PPUMemory {
 public:
     PPUMemory(MapperInterface& _mapper, Mirroring mirroring, Logger* logger=nullptr);
     u8 read(Address address);
+    // USE WITH CARE!
+    u8 readCHR(Address address);
+    u8 readDirectly(Address address);
+    u8 readDirectlyWithoutChecks(Address address);
     PPUMemory& write(Address address, u8 val);
     inline auto& getMemory () { return memory; }
 private:
