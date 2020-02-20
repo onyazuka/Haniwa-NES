@@ -106,6 +106,20 @@ enum class PPUEvent {
     RerenderMe
 };
 
+class PPUDrawnMap {
+public:
+    inline void setBckg(u8 i, bool val) { bckgMap[i] = val; }
+    inline void setSprite(u8 i, bool val) { spriteMap[i] = val; }
+    inline void setSpritePriority(u8 i, bool val) { spritePriorityMap[i] = val; }
+    inline bool testBckg(u8 i) { return bckgMap[i]; }
+    inline bool testSprite(u8 i) { return spriteMap[i]; }
+    inline bool testSpritePriority(u8 i) { return spritePriorityMap[i]; }
+private:
+    std::array<bool, 256> bckgMap;
+    std::array<bool, 256> spriteMap;
+    std::array<bool, 256> spritePriorityMap;
+};
+
 class NES;
 
 // making ppu observable so it ask gui for rendering during vblank
@@ -147,7 +161,8 @@ private:
     void postRender();
     void verticalBlank();
     void pixelRender();
-    void drawPixel(u8 xCoord, u8 yCoord);
+    void drawBackgroundPixel(u8 xCoord, u8 yCoord);
+    void drawSpritePixel(u8 yCoord);
     u32 colorMultiplexer(bool bckgTransparent, u32 bckgColor, bool spriteTransparent, u32 spriteColor, u8 spritePriority);
 
     void setVblank(bool val);
@@ -198,6 +213,7 @@ private:
     // --- sprites
     std::array<u8, 0x100> OAM;
     std::array<u8, 0x20> secondaryOAM;
+    PPUDrawnMap ppuMap;
 
     Shifts8<16> spritesPatternDataShifts8;
     Bytes<8> spriteAttributeBytes;

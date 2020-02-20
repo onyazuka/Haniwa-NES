@@ -156,8 +156,8 @@ void PPU::emulateCycle() {
     Checks if secondaryOAM[secondaryOAMIndex] is sprite zero(OAM[0]-OAM[3])
 */
 bool PPU::isItSprite0(u8 secondaryOAMIndex) const {
-    return (secondaryOAM[secondaryOAMIndex] == OAM[0] && secondaryOAM[secondaryOAMIndex + 1] == OAM[1] &&
-            secondaryOAM[secondaryOAMIndex + 2] == OAM[2] && secondaryOAM[secondaryOAMIndex + 3] == OAM[3]);
+    return (secondaryOAM[secondaryOAMIndex * 4] == OAM[0] && secondaryOAM[secondaryOAMIndex * 4 + 1] == OAM[1] &&
+            secondaryOAM[secondaryOAMIndex * 4 + 2] == OAM[2] && secondaryOAM[secondaryOAMIndex * 4 + 3] == OAM[3]);
 }
 
 Serialization::BytesCount PPU::serialize(std::string &buf) {
@@ -243,7 +243,7 @@ void PPU::visibleRender() {
         break;
     }
     if(cycle >= 3 && cycle <= 258) {
-        drawPixel(cycle - 3, scanline);
+        drawBackgroundPixel(cycle - 3, scanline);
         _renderInternalBckgShifts();
     }
     if(cycle > 329 && cycle <= 337) _renderInternalBckgShifts();
@@ -274,12 +274,13 @@ void PPU::pixelRender() {
     case 65 ... 256: _spriteEvaluate(); break;
     // OAMADDR is set to 0 during those ticks
     case 257 ... 320: _spriteEvaluateFetchData(); ppuRegisters.writeOamaddr(0); break;
-    default: return;
     }
+    // it should be called AFTER 258 cycle background pixel rendering. There is exactly 8 cycles to draw sprite line before it's registers will be cleared.
+    if(cycle >= 258 && cycle <= 321) drawSpritePixel(scanline);
     if((cycle >= 265 && cycle <= 321) && (((cycle - 1) % 8) == 0)) _spriteEvaluateFedData();
 }
 
-void PPU::drawPixel(u8 xCoord, u8 yCoord) {
+void PPU::drawBackgroundPixel(u8 xCoord, u8 yCoord) {
     static const auto& ppuMem = memory.getMemory();
     // get background pixel
     // keeping in mind fine x scroll
@@ -291,9 +292,6 @@ void PPU::drawPixel(u8 xCoord, u8 yCoord) {
     // OPTIMIZATION: memory access operation with all its check may by expensive, so, as we access only palette here, we can read memory directly
     u32 bckgColor = Palette[ppuMem[0x3f00]];
     bool bckgTransparent = true;
-    u32 spriteColor = bckgColor;
-    bool spriteTransparent = true;
-    u8 spritePriority = 0;      // behind background
     if(ppuRegisters.readPpumaskShowBckg() && !(xCoord < 8 && !ppuRegisters.readPpumaskShowBckgLeftmost8())) {
         //u8 bckgPaletteInnerIndex = ((patternDataShifts16[0] & (1 << (15 - x))) >> (14 - x)) | ((patternDataShifts16[1] & (1 << (15 - x))) >> (15 - x));
         //u8 bckgPaletteNumber = ((attrDataShifts8[0] & (1 << (7 - x))) >> (6 - x)) | ((attrDataShifts8[1] & (1 << (7 - x))) >> (7 - x));
@@ -303,39 +301,50 @@ void PPU::drawPixel(u8 xCoord, u8 yCoord) {
         bckgColor = Palette[ppuMem[bckgPaletteAddress]];
         bckgTransparent = !(bckgPaletteAddress & 0b11);
     }
-
-    bool showSpriteHere = ppuRegisters.readPpumaskShowSprites() && !(xCoord < 8 && !ppuRegisters.readPpumaskShowSpritesLeftmost8());
-    // get sprite pixel
-    for(u8 i = 0; i < spriteXCounters.size(); ++i) {
-        // sprite is active if its counter is from 0(activated) till -7(last pixel)
-        if ((spriteXCounters[i] <= xCoord) && (xCoord <= (spriteXCounters[i] + 8))  && showSpriteHere) {
-            // has some data
-            // if already has some not transparent pixel, skipping others
-            if (spriteTransparent) {
-                u8 spritePaletteInnerIndex = ((spritesPatternDataShifts8[i * 2]  & 0b10000000 ? 1 : 0) << 1) + (spritesPatternDataShifts8[i * 2 + 1] & 0b10000000 ? 1 : 0);
-                u8 spritePaletteNumber = spriteAttributeBytes[i] & 0b11;
-                Address spritePaletteAddress = 0x3F10 + (spritePaletteNumber << 2) + spritePaletteInnerIndex;
-                spriteTransparent = !(spritePaletteAddress & 0b11);
-                spriteColor = Palette[ppuMem[spritePaletteAddress]];
-                spritePriority = (spriteAttributeBytes[i] & 0b00100000) >> 5;
-            }
-            // shifting
-            spritesPatternDataShifts8[i * 2] <<= 1;
-            spritesPatternDataShifts8[i * 2 + 1] <<= 1;
-            // sprite 0 hit
-            if (isItSprite0(i) && secondaryOAM[i * 4 + 3] != 255 && !bckgTransparent && !spriteTransparent && !(ppuRegisters.ppuRegisters.ppustatus & 0b01000000)) {
-                ppuRegisters.writePpustatusSprite0Hit(1);
-            }
-        }
-    }
-
-    // deciding which pixel to draw
-    _image[yCoord * 256 + xCoord] = colorMultiplexer(bckgTransparent, bckgColor, spriteTransparent, spriteColor, spritePriority);
+    _image[yCoord * 256 + xCoord] = bckgColor;
+    // clearing map here - true means transparent
+    ppuMap.setBckg(xCoord, true);
+    ppuMap.setSprite(xCoord, true);
+    ppuMap.setSpritePriority(xCoord, true);
+    ppuMap.setBckg(xCoord, bckgTransparent);
 
     // drawing grid for debug
     if(drawDebugGrid && (xCoord % 8 == 0 || yCoord % 8 == 0)) {
         _image[yCoord * 256 + xCoord] = 0xffffff;
         return;
+    }
+}
+
+// should be called AFTER all background pixels are drawn
+void PPU::drawSpritePixel(u8 yCoord) {
+    static const auto& ppuMem = memory.getMemory();
+    u8 spriteToDraw = (cycle - 258) >> 3;
+    u8 i = spriteToDraw;
+    u8 spriteXOffset = (cycle - 258) & 7;
+    u16 spriteXCoord = spriteXCounters[spriteToDraw] + spriteXOffset;
+
+    if(spriteXCoord >= 256) return;
+
+    u8 spritePaletteInnerIndex = ((spritesPatternDataShifts8[i * 2]  & 0b10000000 ? 1 : 0) << 1) + (spritesPatternDataShifts8[i * 2 + 1] & 0b10000000 ? 1 : 0);
+    u8 spritePaletteNumber = spriteAttributeBytes[i] & 0b11;
+    Address spritePaletteAddress = 0x3F10 + (spritePaletteNumber << 2) + spritePaletteInnerIndex;
+    bool spriteTransparent = !(spritePaletteAddress & 0b11);
+    u32 spriteColor = Palette[ppuMem[spritePaletteAddress]];
+    u8 spritePriority = (spriteAttributeBytes[i] & 0b00100000) >> 5;
+
+    // if not have or have a transparent sprite here - override
+    if(ppuMap.testSprite(spriteXCoord)) {
+        _image[yCoord * 256 + spriteXCoord] = colorMultiplexer(ppuMap.testBckg(spriteXCoord), _image[yCoord * 256 + spriteXCoord], spriteTransparent, spriteColor, spritePriority);
+    }
+
+    ppuMap.setSprite(spriteXCoord, spriteTransparent);
+    ppuMap.setSpritePriority(spriteXCoord, spritePriority);
+    spritesPatternDataShifts8[i * 2] <<= 1;
+    spritesPatternDataShifts8[i * 2 + 1] <<= 1;
+
+    // sprite 0 hit
+    if (isItSprite0(i) && spriteXCoord != 255 && !ppuMap.testBckg(spriteXCoord) && !spriteTransparent && !(ppuRegisters.ppuRegisters.ppustatus & 0b01000000)) {
+        ppuRegisters.writePpustatusSprite0Hit(1);
     }
 }
 
