@@ -132,10 +132,13 @@ void PPU::step() {
         case 241 ... 260: verticalBlank(); break;
     }
     // each scanline consists of exactly 341 cycles
-    cycle = (cycle + 1) % 341;
-    if (cycle == 0) ++scanline;
+    ++cycle;
+    if (cycle == 341) {
+        ++scanline;
+        cycle = 0;
+    }
     // odd frames skip 262 prerender, even - don't skip
-    if ((scanline == -1) && (frame % 2) && (cycle == 340)) {
+    else if ((scanline == -1) && (frame % 2) && (cycle == 340)) {
         cycle = 0;
         ++scanline;
     }
@@ -285,7 +288,8 @@ void PPU::drawBackgroundPixel(u8 xCoord, u8 yCoord) {
     // OPTIMIZATION: memory access operation with all its check may by expensive, so, as we access only palette here, we can read memory directly
     u32 bckgColor = Palette[ppuMem[0x3f00]];
     bool bckgTransparent = true;
-    if(ppuRegisters.readPpumaskShowBckg() && !(xCoord < 8 && !ppuRegisters.readPpumaskShowBckgLeftmost8())) {
+    // if show background/leftmost 8 background
+    if((ppuRegisters.ppuRegisters.ppumask & 0b1000) && !(xCoord < 8 && !ppuRegisters.ppuRegisters.ppumask & 0b10)) {
         u8 bckgPaletteInnerIndex = (patternDataShifts16[0] & shiftMask16 ? 2 : 0) + ((patternDataShifts16[1] & shiftMask16) ? 1 : 0);
         u8 bckgPaletteNumber = (attrDataShifts8[0] & shiftMask8 ? 2 : 0) + (attrDataShifts8[1] & shiftMask8 ? 1 : 0);
         Address bckgPaletteAddress = 0x3F00 + (bckgPaletteNumber << 2) + bckgPaletteInnerIndex;
@@ -298,10 +302,12 @@ void PPU::drawBackgroundPixel(u8 xCoord, u8 yCoord) {
     ppuMap.setBckg(xCoord, bckgTransparent);
 
     // drawing grid for debug
+#ifdef DEBUG
     if(drawDebugGrid && (xCoord % 8 == 0 || yCoord % 8 == 0)) {
         _image[yCoord * 256 + xCoord] = 0xffffff;
         return;
     }
+#endif
 }
 
 // should be called AFTER all background pixels are drawn
@@ -322,7 +328,7 @@ void PPU::drawSpritePixel(u8 yCoord) {
     u32 spriteColor = Palette[ppuMem[spritePaletteAddress]];
     u8 spritePriority = (spriteAttributeBytes[i] & 0b00100000) >> 5;
 
-    // if not have or have a transparent sprite here - override
+    // if not have any or have a transparent sprite here - override
     if(ppuMap.testSprite(spriteXCoord)) {
         _image[yCoord * 256 + spriteXCoord] = colorMultiplexer(bckgTransparent, _image[(yCoord << 8) + spriteXCoord], spriteTransparent, spriteColor, spritePriority);
     }
@@ -503,27 +509,21 @@ void PPU::_spriteEvaluate() {
     static u16 n = 0;
     // current slot in secondary OAM
     static u8 secondarySlot = 0;
-    // temporary value read on odd cycles
-    static i16 tempVal;
-    // initializing on cycle 65. First sprite is a one at oamaddr
+    // initializing on cycle 65. First sprite is the one at oamaddr
     if (cycle == 65) {
         m = ppuRegisters.readOamaddr() % 4;
         n = ppuRegisters.readOamaddr() / 4;
         secondarySlot = 0;
     }
-    // odd cycles - reading from OAM
-    if (cycle % 2) {
-        tempVal = OAM[n * 4 + m];
-    }
     // even cycles - writing to secondary OAM
-    else {
+    if (!(cycle % 2)) {
         // if oamaddr at start of dot 65 is not 0, overflow can occure. In this case, just ignoring next values
         if (n >= 64) return;
         u8 tempY = OAM[n * 4];
         // sprite is on the next scanline
         u8 spriteHeight = ppuRegisters.readPpuctrlSpriteSize() ? 16 : 8;
         if((secondarySlot < 8) && tempY <= (scanline + 1) && (scanline + 1) < (tempY + spriteHeight)) {
-            secondaryOAM[secondarySlot * 4 + m] = tempVal;
+            secondaryOAM[secondarySlot * 4 + m] = OAM[n * 4 + m];
             // all slots are already filled - setting sprite overflow
             if (secondarySlot == 8) ppuRegisters.writePpustatusSpriteOverflow(1);
             ++m;
