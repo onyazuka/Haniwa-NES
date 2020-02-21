@@ -6,7 +6,7 @@ JMP NB
 + MIRRORING
 + PPUDATA read (post-fetch) - (read "The PPUDATA read buffer (post-fetch)" section at "http://wiki.nesdev.com/w/index.php/PPU_registers") - should ppu store an internal vram buffer?
 + render enable
-render enable leftmost
++ render enable leftmost
 + Palette bytes mirroring
 Pixel evaluation, clear OAM - return 0xff during clearing when reading 0x2004
 + 8x16 sprites - sprite evaluation
@@ -15,9 +15,10 @@ first empty sprite - y coord of 63 sprite, than sequential 0xff
 + Reading PPUDATA during vblank is ok, but what about rendering enable/disable??? SHould it be only vblank where it is ok to read?
 + Write to OAMDMA during rendering. Is it ok?
 !!!Write to PPUDATA during rendering - is it ok? Donkey Kong won't display the monkey without it!!!
-  Generating NMI when writing in PPUCTRL if NMI flag is not set, and PPUMASK's vblank is set
-	Sprites flip - read PPU OAM!!!!!!!!!!!!!!!!!!!!!
++ Generating NMI when writing in PPUCTRL if NMI flag is not set, and PPUMASK's vblank is set
+	???Sprites flip - read PPU OAM!!!!!!!!!!!!!!!!!!!!!
 	PPUSCROLL - what if y value is >= 240 and <= 255???
+	If rendering is disabled, I should use the backdrop color(read PPU Palettes, "Backdrop color (palette index 0) uses" section)
 
 
 [BUGS]

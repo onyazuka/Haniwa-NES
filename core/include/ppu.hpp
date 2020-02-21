@@ -108,6 +108,7 @@ enum class PPUEvent {
 
 class PPUDrawnMap {
 public:
+    friend class PPU;
     inline void setBckg(u8 i, bool val) { bckgMap[i] = val; }
     inline void setSprite(u8 i, bool val) { spriteMap[i] = val; }
     inline bool testBckg(u8 i) { return bckgMap[i]; }
@@ -161,6 +162,7 @@ private:
     void drawBackgroundPixel(u8 xCoord, u8 yCoord);
     void drawSpritePixel(u8 yCoord);
     u32 colorMultiplexer(bool bckgTransparent, u32 bckgColor, bool spriteTransparent, u32 spriteColor, u8 spritePriority);
+    u32 getForcedBlankColor() const;
 
     void setVblank(bool val);
 

@@ -168,9 +168,9 @@ Serialization::BytesCount PPU::serialize(std::string &buf) {
     return Serialization::Serializer::serializeAll(buf, &regs.ppuctrl, &regs.ppumask, &regs.ppustatus, &regs.oamaddr, &regs.oamdata,
                                                    &regs.ppuscroll, &regs.ppuaddr, &regs.ppudata, &regs.oamdma, &memory.getMemory(),
                                                    &v, &t, &x, &w, &patternDataShifts16, &attrDataShifts8, &attrDataLatches,
-                                                   &ntByte, &attrByte, &lowBgByte, &highBgByte, &OAM, &secondaryOAM, &spritesPatternDataShifts8,
-                                                   &spriteAttributeBytes, &spriteXCounters, &spriteLowPatternByte, &spriteHighPatternByte,
-                                                   &frame, &scanline, &cycle);
+                                                   &ntByte, &attrByte, &lowBgByte, &highBgByte, &OAM, &secondaryOAM, &ppuMap.bckgMap, &ppuMap.spriteMap,
+                                                   &spritesPatternDataShifts8, &spriteAttributeBytes, &spriteXCounters, &spriteLowPatternByte,
+                                                   &spriteHighPatternByte, &frame, &scanline, &cycle);
 }
 
 Serialization::BytesCount PPU::deserialize(const std::string &buf, Serialization::BytesCount offset) {
@@ -182,13 +182,15 @@ Serialization::BytesCount PPU::deserialize(const std::string &buf, Serialization
     auto adlWr  = wrapArr(attrDataLatches);
     auto oamWr  = wrapArr(OAM);
     auto soamWr = wrapArr(secondaryOAM);
+    auto mapBWr = wrapArr(ppuMap.bckgMap);
+    auto mapSWr = wrapArr(ppuMap.spriteMap);
     auto spd8Wr = wrapArr(spritesPatternDataShifts8);
     auto sadWr  = wrapArr(spriteAttributeBytes);
     auto scWr   = wrapArr(spriteXCounters);
     return Serialization::Deserializer::deserializeAll(buf, offset, &regs.ppuctrl, &regs.ppumask, &regs.ppustatus, &regs.oamaddr, &regs.oamdata,
                                                    &regs.ppuscroll, &regs.ppuaddr, &regs.ppudata, &regs.oamdma, &memWr,
                                                    &v, &t, &x, &w, &pd16Wr, &ad8Wr, &adlWr,
-                                                   &ntByte, &attrByte, &lowBgByte, &highBgByte, &oamWr, &soamWr, &spd8Wr,
+                                                   &ntByte, &attrByte, &lowBgByte, &highBgByte, &oamWr, &soamWr, &mapBWr, &mapSWr, &spd8Wr,
                                                    &sadWr, &scWr, &spriteLowPatternByte, &spriteHighPatternByte,
                                                    &frame, &scanline, &cycle);
 }
@@ -289,14 +291,20 @@ void PPU::drawBackgroundPixel(u8 xCoord, u8 yCoord) {
     u32 bckgColor = Palette[ppuMem[0x3f00]];
     bool bckgTransparent = true;
     // if show background/leftmost 8 background
-    if((ppuRegisters.ppuRegisters.ppumask & 0b1000) && !(xCoord < 8 && !ppuRegisters.ppuRegisters.ppumask & 0b10)) {
+    if((ppuRegisters.ppuRegisters.ppumask & 0b1000) && !(xCoord < 8 && !(ppuRegisters.ppuRegisters.ppumask & 0b10))) {
         u8 bckgPaletteInnerIndex = (patternDataShifts16[0] & shiftMask16 ? 2 : 0) + ((patternDataShifts16[1] & shiftMask16) ? 1 : 0);
         u8 bckgPaletteNumber = (attrDataShifts8[0] & shiftMask8 ? 2 : 0) + (attrDataShifts8[1] & shiftMask8 ? 1 : 0);
-        Address bckgPaletteAddress = 0x3F00 + (bckgPaletteNumber << 2) + bckgPaletteInnerIndex;
-        bckgColor = Palette[ppuMem[bckgPaletteAddress]];
-        bckgTransparent = !(bckgPaletteAddress & 0b11);
+        // if bckgPaletteInnerIndex is 0, we should use the backdrop color
+        if(bckgPaletteInnerIndex != 0) {
+            Address bckgPaletteAddress = 0x3F00 + (bckgPaletteNumber << 2) + bckgPaletteInnerIndex;
+            bckgColor = Palette[ppuMem[bckgPaletteAddress]];
+            bckgTransparent = !(bckgPaletteAddress & 0b11);
+        }
+        _image[(yCoord << 8) + xCoord] = bckgColor;
     }
-    _image[(yCoord << 8) + xCoord] = bckgColor;
+    else {
+        _image[(yCoord << 8) + xCoord] = getForcedBlankColor();
+    }
     // clearing map here - true means transparent
     ppuMap.setSprite(xCoord, true);
     ppuMap.setBckg(xCoord, bckgTransparent);
@@ -319,12 +327,26 @@ void PPU::drawSpritePixel(u8 yCoord) {
     u16 spriteXCoord = spriteXCounters[spriteToDraw] + spriteXOffset;
 
     if(spriteXCoord >= 256) return;
+    // if not show sprites - return
+    if (!(ppuRegisters.ppuRegisters.ppumask & 0b10000 || (spriteXCoord < 8 && ppuRegisters.ppuRegisters.ppumask & 0b100))) {
+        _image[yCoord * 256 + spriteXCoord] = getForcedBlankColor();
+        return;
+    }
 
     bool bckgTransparent = ppuMap.testBckg(spriteXCoord);
     u8 spritePaletteInnerIndex = (spritesPatternDataShifts8[i * 2] & 0b10000000 ? 2 : 0) + (spritesPatternDataShifts8[i * 2 + 1] & 0b10000000 ? 1 : 0);
     u8 spritePaletteNumber = spriteAttributeBytes[i] & 0b11;
-    Address spritePaletteAddress = 0x3F10 + (spritePaletteNumber << 2) + spritePaletteInnerIndex;
-    bool spriteTransparent = !(spritePaletteAddress & 0b11);
+    Address spritePaletteAddress;
+    bool spriteTransparent;
+    if(spritePaletteInnerIndex != 0) {
+        spritePaletteAddress = 0x3F10 + (spritePaletteNumber << 2) + spritePaletteInnerIndex;
+        spriteTransparent = !(spritePaletteAddress & 0b11);
+    }
+    // using backdrop
+    else {
+        spritePaletteAddress = 0x3F00;
+        spriteTransparent = true;
+    }
     u32 spriteColor = Palette[ppuMem[spritePaletteAddress]];
     u8 spritePriority = (spriteAttributeBytes[i] & 0b00100000) >> 5;
 
@@ -350,6 +372,17 @@ u32 PPU::colorMultiplexer(bool bckgTransparent, u32 bckgColor, bool spriteTransp
     // !bckgTransparent && !spriteTransparent
     if(spritePriority == 0) return spriteColor; // 0 means in front of background
     else return bckgColor;
+}
+
+/*
+    During forced blank(when rendering is disabled) we should render sprites of BACKDROP color.
+    Usually, it is the color at 0x3F00, BUT if v points to an address in the palette(0x3F00 - 0x3FFF) we should use this value.
+    This is so called "background palette hack".
+*/
+u32 PPU::getForcedBlankColor() const {
+    Address addr = v & AccessAddressMask;
+    if (addr >= 0x3F00 && addr <= 0x3FFF) return Palette[memory.read(addr)];
+    else return Palette[0x3F00];
 }
 
 Address PPU::_getTileAddress() {
