@@ -65,7 +65,11 @@ Instruction makeInstruction(CPU& cpu, AddressationMode addrMode, Address offset)
     else if (addrMode == AddressationMode::AbsoluteX) {
         argument = memory.read16(offset);
         addr = argument + registers.X;
+<<<<<<< HEAD
         crossPage = (argument >> 8) != (addr >> 8);
+=======
+        crossPage = (argument & 255) != (addr & 255);
+>>>>>>> tmp2
         length = 3;
         cycles = crossPage ? 5 : 4;
 
@@ -73,7 +77,11 @@ Instruction makeInstruction(CPU& cpu, AddressationMode addrMode, Address offset)
     else if (addrMode == AddressationMode::AbsoluteY) {
         argument = memory.read16(offset);
         addr = argument + registers.Y;
+<<<<<<< HEAD
         crossPage = (argument >> 8) != (addr >> 8);
+=======
+        crossPage = (argument & 255) != (addr & 255);
+>>>>>>> tmp2
         length = 3;
         cycles = crossPage ? 5 : 4;
 
@@ -94,7 +102,11 @@ Instruction makeInstruction(CPU& cpu, AddressationMode addrMode, Address offset)
         argument = memory.read8(offset);
         Address base = memory.read16(argument);
         addr = base + registers.Y;
+<<<<<<< HEAD
         crossPage = (base >> 8) != (addr >> 8);
+=======
+        crossPage = (base & 255) != (addr & 255);
+>>>>>>> tmp2
         length = 2;
         cycles = crossPage ? 6 : 5;
     }
@@ -421,7 +433,11 @@ u8 CPU::step() {
         // add 1 to cycles if nextBranchAddress
         ++instruction.cycles;
         // if this page != nextBranchAddressPage add one more(page crossing)
+<<<<<<< HEAD
         if((offset >> 8) != (nextBranchAddress >> 8)) ++instruction.cycles;
+=======
+        if((offset & 255) != (nextBranchAddress & 255)) ++instruction.cycles;
+>>>>>>> tmp2
     }
     else regs.PC += instruction.length;
     instructionCounter++;

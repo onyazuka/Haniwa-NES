@@ -108,7 +108,11 @@ int main()
 
     const std::string savePath = "/home/onyazuka/nesSaves/Excitebike.hns";
 
+<<<<<<< HEAD
     nes.load(savePath);
+=======
+    //nes.load(savePath);
+>>>>>>> tmp2
     std::thread cpuThread([&nes, &savePath]() {
         while(true) {
             nes.doInstruction();
