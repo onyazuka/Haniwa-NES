@@ -2,6 +2,7 @@
 #include "core/include/cpu.hpp"
 #include "core/include/ppu.hpp"
 #include "core/include/rom.hpp"
+#include "core/include/input.hpp"
 
 class InvalidFileException{};
 
@@ -16,10 +17,13 @@ public:
     inline ROM& getRom() { return rom; }
     inline PPU& getPpu() { return ppu; }
     inline CPU& getCpu() { return cpu; }
+    inline StandardController& getController(int num) { if(num == 0) return stController1; else return stController2; }
 private:
     void waitUntilEventQueueIsEmpty();
 
     ROM rom;
+    StandardController stController1;
+    StandardController stController2;
     Uptr<MapperInterface> mapper;
     PPUMemory ppuMemory;
     EventQueue eventQueue;

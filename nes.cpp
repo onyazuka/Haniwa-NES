@@ -2,10 +2,12 @@
 
 NES::NES(const std::string &romFname, Logger* _logger)
     : rom{romFname, _logger},
+      stController1{},
+      stController2{},
       mapper{makeMapper(rom.header()->mapper(), rom, _logger)},
       ppuMemory{*mapper, rom.header()->mirroring(), _logger},
       ppu{ppuMemory, eventQueue, _logger},
-      memory{*mapper, ppu},
+      memory{*mapper, ppu, stController1, stController2},
       cpu{memory, ppu, eventQueue, _logger},
       logger{_logger}
 {
