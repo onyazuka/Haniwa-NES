@@ -17,6 +17,7 @@ Instruction makeInstruction(CPU& cpu, AddressationMode addrMode, Address offset)
     // skipping opcode
     ++offset;
     Address addr = 0;
+    u16 argument = 0;
     u8 length = 1;      // at least opcode
     u8 cycles = 0;
     Memory& memory = cpu.getMemory();
@@ -24,75 +25,83 @@ Instruction makeInstruction(CPU& cpu, AddressationMode addrMode, Address offset)
     // cross page can occure when using AbsoluteX, AbsoluteY or IndirectIndexed modes
     bool crossPage = false;
     if (addrMode == AddressationMode::Implied || addrMode == AddressationMode::Accumulator) {
-        return Instruction{&memory,std::nullopt,0,1,2};
+        return Instruction{&memory,std::nullopt,0,0,1,2};
     }
     else if (addrMode == AddressationMode::Immediate) {
         // 0 means we don't have any address
-        return Instruction{&memory,memory.read8(offset), 0, 2, 2};
+        return Instruction{&memory,memory.read8(offset), 0, 0, 2, 2};
     }
     else if (addrMode == AddressationMode::ZeroPage) {
         addr = memory.read8(offset);
+        argument = addr;
         length = 2;
         cycles = 3;
     }
     else if (addrMode == AddressationMode::ZeroPageX) {
-        addr = (memory.read8(offset) + registers.X) % 0x100;
+        argument = memory.read8(offset);
+        addr = (argument + registers.X) % 0x100;
         length = 2;
         cycles = 4;
     }
     else if (addrMode == AddressationMode::ZeroPageY) {
-        addr = (memory.read8(offset) + registers.Y) % 0x100;
+        argument = memory.read8(offset);
+        addr = (argument + registers.Y) % 0x100;
         length = 2;
         cycles = 4;
     }
     else if (addrMode == AddressationMode::Relative) {
+        argument = memory.read8(offset);
         // +1 because relative offset is calculated from place AFTER the instruction(and any relative addressing instruction has size 2 bytes)
-        addr = offset + 1 + (i8)(memory.read8(offset));
+        addr = offset + 1 + (i8)(argument);
         length = 2;
         cycles = 2;
     }
     else if (addrMode == AddressationMode::Absolute) {
-        addr = memory.read16(offset);
+        argument = memory.read16(offset);
+        addr = argument;
         length = 3;
         cycles = 4;
     }
     else if (addrMode == AddressationMode::AbsoluteX) {
-        Address base = memory.read16(offset);
-        addr = base + registers.X;
-        crossPage = (base % PAGE_SIZE) != (addr % PAGE_SIZE);
+        argument = memory.read16(offset);
+        addr = argument + registers.X;
+        crossPage = (argument >> 8) != (addr >> 8);
         length = 3;
         cycles = crossPage ? 5 : 4;
 
     }
     else if (addrMode == AddressationMode::AbsoluteY) {
-        Address base = memory.read16(offset);
-        addr = base + registers.Y;
-        crossPage = (base % PAGE_SIZE) != (addr % PAGE_SIZE);
+        argument = memory.read16(offset);
+        addr = argument + registers.Y;
+        crossPage = (argument >> 8) != (addr >> 8);
         length = 3;
         cycles = crossPage ? 5 : 4;
 
     }
     else if (addrMode == AddressationMode::Indirect) {
-        addr = memory.read16(memory.read16(offset));
+        argument = memory.read16(offset);
+        addr = memory.read16(argument);
         length = 3;
         cycles = 5;
     }
     else if (addrMode == AddressationMode::IndexedIndirect) {
-        addr = memory.read16(memory.read8(offset) + registers.X);
+        argument = memory.read8(offset);
+        addr = memory.read16(argument + registers.X);
         length = 2;
         cycles = 6;
     }
     else if (addrMode == AddressationMode::IndirectIndexed) {
-        Address base = memory.read16(memory.read8(offset));
+        argument = memory.read8(offset);
+        Address base = memory.read16(argument);
         addr = base + registers.Y;
-        crossPage = (base % PAGE_SIZE) != (addr % PAGE_SIZE);
+        crossPage = (base >> 8) != (addr >> 8);
         length = 2;
         cycles = crossPage ? 6 : 5;
     }
     else {
         throw UnknownAddressModeException{};
     }
-    return Instruction{&memory, std::nullopt, addr, length, cycles};
+    return Instruction{&memory, std::nullopt, addr, argument, length, cycles};
 }
 
 CPU::CPU(Memory &_memory, PPU& _ppu, EventQueue& _eventQueue, Logger* _logger)
@@ -253,6 +262,10 @@ u8 CPU::step() {
     case 0xC8: regs.Y++; regs.setZero(regs.Y).setNegative(regs.Y); break;
     // JMP
     case 0x4C: case 0x6C:
+        // case of JMP indirect 6502 bug
+        if((opcode == 0x6C) && ((instruction.argument & 0xff) == 0xff)) {
+            instruction.address = (memory.read8(instruction.argument & 0xFF00) << 8) + memory.read8(instruction.argument);
+        }
         nextUnconditionalAddress = instruction.address;
         if(opcode == 0x4C) instruction.cycles = 3;
         break;
@@ -400,7 +413,7 @@ u8 CPU::step() {
     }
     // IT SHOULD BE HERE: trying to not trigger unnecessary read operation
 #ifdef DEBUG
-    if(logger) logger->log(LogLevel::Debug, "[" + std::to_string(instructionCounter) + "]:" + getPrettyInstruction(opcode, addrMode, offset, instruction));
+    if(logger) logger->log(LogLevel::Debug, "[" + std::to_string(instructionCounter) + "][PC: " + numToHexStr(regs.PC, 4) + "]:" + getPrettyInstruction(opcode, addrMode, offset, instruction));
 #endif
     if (nextUnconditionalAddress) regs.PC = nextUnconditionalAddress;
     else if (nextBranchAddress) {
@@ -408,7 +421,7 @@ u8 CPU::step() {
         // add 1 to cycles if nextBranchAddress
         ++instruction.cycles;
         // if this page != nextBranchAddressPage add one more(page crossing)
-        if((offset % PAGE_SIZE) != (nextBranchAddress % PAGE_SIZE)) ++instruction.cycles;
+        if((offset >> 8) != (nextBranchAddress >> 8)) ++instruction.cycles;
     }
     else regs.PC += instruction.length;
     instructionCounter++;
@@ -487,8 +500,10 @@ void CPU::oamDmaWrite() {
     u8 startOAMAddr = ppu.accessPPURegisters().readOamaddr();
     for(int i = 0; i < 0x100; ++i) {
         Address addr = (page << 8) + i;
-        emulateCycles([this, &OAM, i, addr, startOAMAddr]() {
-            OAM[startOAMAddr + i] = memory.read8(addr);
+        // this will make address cyclic(256 bytes)
+        u8 oamAddr = startOAMAddr + i;
+        emulateCycles([this, &OAM, i, addr, startOAMAddr, oamAddr]() {
+            OAM[oamAddr] = memory.read8(addr);
             // each such operation consumes 2 CPU cycles
             return 2;
         });
@@ -500,8 +515,8 @@ std::string getPrettyInstruction(u8 opcode, AddressationMode addrMode, Address c
     std::string hexVal8 = instruction.hasVal8() ? numToHexStr(instruction.val8(), 2) : "UNKNOWN";
     std::string hexAddr8 = numToHexStr(instruction.address, 2);
     std::string hexAddr16 = numToHexStr(instruction.address, 4);
-    std::string curHexAddr8 = numToHexStr(curAddress, 2);;
-    std::string curHexAddr16 = numToHexStr(curAddress, 4);;
+    std::string curHexAddr8 = numToHexStr(instruction.argument, 2);;
+    std::string curHexAddr16 = numToHexStr(instruction.argument, 4);;
     i16 relAddress = instruction.address - curAddress;
 
     std::string pretty;
@@ -511,15 +526,15 @@ std::string getPrettyInstruction(u8 opcode, AddressationMode addrMode, Address c
     case AddressationMode::Accumulator: pretty = "A"; break;
     case AddressationMode::Immediate: pretty = "#" + hexVal8; break;
     case AddressationMode::ZeroPage: pretty = "$" + hexAddr8; break;
-    case AddressationMode::ZeroPageX: pretty = "$" + hexAddr8 + ", X"; break;
-    case AddressationMode::ZeroPageY: pretty = "$" + hexAddr8 + ", Y"; break;
+    case AddressationMode::ZeroPageX: pretty = "$" + curHexAddr8 + ", X => " + hexAddr16; break;
+    case AddressationMode::ZeroPageY: pretty = "$" + curHexAddr8 + ", Y => " + hexAddr16; break;
     case AddressationMode::Relative: pretty = "*" + std::string(relAddress > 0 ? "+" : "") + std::to_string(relAddress); break;
     case AddressationMode::Absolute: pretty = "$" + hexAddr16; break;
-    case AddressationMode::AbsoluteX: pretty = "$" + hexAddr16 + ", X"; break;
-    case AddressationMode::AbsoluteY: pretty = "$" + hexAddr16 + ", Y"; break;
+    case AddressationMode::AbsoluteX: pretty = "$" + curHexAddr16 + ", X => " + hexAddr16; break;
+    case AddressationMode::AbsoluteY: pretty = "$" + curHexAddr16 + ", Y => " + hexAddr16; break;
     case AddressationMode::Indirect: pretty = "($" + curHexAddr16 + ")"; break;
-    case AddressationMode::IndexedIndirect: pretty = "($" + curHexAddr8 + ", X)"; break;
-    case AddressationMode::IndirectIndexed: pretty = "($" + curHexAddr8 + "), Y"; break;
+    case AddressationMode::IndexedIndirect: pretty = "($" + curHexAddr8 + ", X) => " + hexAddr16; break;
+    case AddressationMode::IndirectIndexed: pretty = "($" + curHexAddr8 + "), Y => " + hexAddr16; break;
     }
 
     return OpcodeToString[opcode] + " " + pretty;

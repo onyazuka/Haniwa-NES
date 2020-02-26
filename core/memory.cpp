@@ -2,10 +2,11 @@
 #include <iostream>
 
 // - value-initializing memory(init with zeros)
-Memory::Memory(MapperInterface& _mapper, PPU& _ppu)
-    : memory{}, mapper{_mapper}, ppu{_ppu} {}
+Memory::Memory(MapperInterface& _mapper, PPU& _ppu, StandardController& _contr1, StandardController& _contr2)
+    : memory{}, mapper{_mapper}, ppu{_ppu}, stController1{_contr1}, stController2{_contr2} {}
 
 u8 Memory::read8(Address offset) {
+    // ppu
     if(isInPPURegisters(offset)) {
         auto& ppuregs = ppu.accessPPURegisters();
         switch(offset) {
@@ -20,6 +21,10 @@ u8 Memory::read8(Address offset) {
         case 0x4014: return ppuregs.readOamdma();
         }
     }
+    // controllers
+    else if (offset == 0x4016) return stController1.read();
+    else if (offset == 0x4017) return stController2.read();
+    // others
     auto optionalRes = mapper.read8(offset);
     if(optionalRes) return optionalRes.value();
     Address fixedAddress = _mirrorAddressFix(offset);
@@ -27,6 +32,7 @@ u8 Memory::read8(Address offset) {
 }
 
 Memory& Memory::write8(Address offset, u8 val) {
+    // ppu
     if(isInPPURegisters(offset)) {
         auto& ppuregs = ppu.accessPPURegisters();
         switch(offset) {
@@ -41,6 +47,13 @@ Memory& Memory::write8(Address offset, u8 val) {
         case 0x4014: ppuregs.writeOamdma(val); return *this;
         }
     }
+    // controllers
+    else if (offset == 0x4016) {
+        if (val == 0) stController1.strobe(val);
+        else if (val == 1) stController2.strobe(val);
+        return *this;
+    }
+    // others
     auto optionalRes = mapper.write8(offset, val);
     if(optionalRes) return *this;
     Address fixedAddress = _mirrorAddressFix(offset);

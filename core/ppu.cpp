@@ -9,14 +9,14 @@ PPURegistersAccess::PPURegistersAccess(PPU &_ppu)
     : ppu{_ppu} {}
 
 PPURegistersAccess& PPURegistersAccess::writePpuctrl(u8 val) {
-    // writing base nametable address to ppu's register t
-    ppuRegisters.ppuctrl = val;
-    ppu.t ^= (ppu.t & 0b110000000000);
-    ppu.t |= (val & 0b11) << 10;
     // if setting NMI flag, and in vblank, generate NMI
     if ((ppuRegisters.ppustatus & 0b10000000) && (val & 0b10000000) && !(ppuRegisters.ppuctrl & 0b10000000)) {
         ppu.eventQueue.get().push(EventType::InterruptNMI);
     }
+    // writing base nametable address to ppu's register t
+    ppuRegisters.ppuctrl = val;
+    ppu.t ^= (ppu.t & 0b110000000000);
+    ppu.t |= (val & 0b11) << 10;
     return *this;
 }
 
@@ -382,7 +382,7 @@ u32 PPU::colorMultiplexer(bool bckgTransparent, u32 bckgColor, bool spriteTransp
 u32 PPU::getForcedBlankColor() const {
     Address addr = v & AccessAddressMask;
     if (addr >= 0x3F00 && addr <= 0x3FFF) return Palette[memory.read(addr)];
-    else return Palette[0x3F00];
+    else return Palette[memory.read(0x3F00)];
 }
 
 Address PPU::_getTileAddress() {

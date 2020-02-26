@@ -60,9 +60,10 @@ struct Registers {
 class Instruction {
 public:
     Instruction() {}
-    Instruction(Memory* _memory, std::optional<u8> _val8, Address _address, u8 _length, u8 _cycles)
-        : address{_address}, length{_length}, cycles{_cycles}, memory{_memory}, value8{_val8} {}
+    Instruction(Memory* _memory, std::optional<u8> _val8, Address _address, u16 arg, u8 _length, u8 _cycles)
+        : address{_address}, argument{arg}, length{_length}, cycles{_cycles}, memory{_memory}, value8{_val8} {}
     Address address;
+    u16 argument;
     u8 length;          // in bytes
     u8 cycles;
     // value will be read only once and only if needed
