@@ -1,7 +1,7 @@
 #include "core/include/mappers/mapperinterface.hpp"
 
 MapperInterface::MapperInterface(ROM& _rom, Logger* _logger)
-    : rom{_rom}, logger{_logger} {}
+    : rom{_rom}, logger{_logger}, _mirroring{rom.header()->mirroring()} {}
 
 std::optional<u8> MapperInterface::read8(Address offset) {
     if(!checkAddress(offset)) return std::nullopt;

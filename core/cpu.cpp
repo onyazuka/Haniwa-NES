@@ -65,11 +65,7 @@ Instruction makeInstruction(CPU& cpu, AddressationMode addrMode, Address offset)
     else if (addrMode == AddressationMode::AbsoluteX) {
         argument = memory.read16(offset);
         addr = argument + registers.X;
-<<<<<<< HEAD
-        crossPage = (argument >> 8) != (addr >> 8);
-=======
         crossPage = (argument & 255) != (addr & 255);
->>>>>>> tmp2
         length = 3;
         cycles = crossPage ? 5 : 4;
 
@@ -77,11 +73,7 @@ Instruction makeInstruction(CPU& cpu, AddressationMode addrMode, Address offset)
     else if (addrMode == AddressationMode::AbsoluteY) {
         argument = memory.read16(offset);
         addr = argument + registers.Y;
-<<<<<<< HEAD
-        crossPage = (argument >> 8) != (addr >> 8);
-=======
         crossPage = (argument & 255) != (addr & 255);
->>>>>>> tmp2
         length = 3;
         cycles = crossPage ? 5 : 4;
 
@@ -102,11 +94,7 @@ Instruction makeInstruction(CPU& cpu, AddressationMode addrMode, Address offset)
         argument = memory.read8(offset);
         Address base = memory.read16(argument);
         addr = base + registers.Y;
-<<<<<<< HEAD
-        crossPage = (base >> 8) != (addr >> 8);
-=======
         crossPage = (base & 255) != (addr & 255);
->>>>>>> tmp2
         length = 2;
         cycles = crossPage ? 6 : 5;
     }
@@ -139,6 +127,10 @@ void CPU::execInstruction() {
 
 // returns number of cycles instruction elapsed
 u8 CPU::step() {
+    if(instructionCounter == 4) {
+        int i = 0;
+        i += 1;
+    }
     Address offset = registers().PC;
     u8 opcode = memory.read8(offset);
     AddressationMode addrMode;
@@ -433,11 +425,7 @@ u8 CPU::step() {
         // add 1 to cycles if nextBranchAddress
         ++instruction.cycles;
         // if this page != nextBranchAddressPage add one more(page crossing)
-<<<<<<< HEAD
-        if((offset >> 8) != (nextBranchAddress >> 8)) ++instruction.cycles;
-=======
         if((offset & 255) != (nextBranchAddress & 255)) ++instruction.cycles;
->>>>>>> tmp2
     }
     else regs.PC += instruction.length;
     instructionCounter++;
@@ -475,7 +463,7 @@ void CPU::interrupt(InterruptType intType, Address nextPC) {
     // NMI should be processed
     if(registers().interruptDisable() && intType != InterruptType::NMI) return;
     registers().setBFlag(intType == InterruptType::BRK);    // only BRK sets B flag
-    push(nextPC).push(registers().P);
+    push((u16)nextPC).push(registers().P);
     registers().setInterruptDisable(true);
     registers().PC = intType == InterruptType::NMI ? memory.read16(NonMaskableInterruptVectorAddress) : memory.read8(InterruptVectorAddress);
 }
@@ -519,6 +507,11 @@ void CPU::oamDmaWrite() {
         // this will make address cyclic(256 bytes)
         u8 oamAddr = startOAMAddr + i;
         emulateCycles([this, &OAM, i, addr, startOAMAddr, oamAddr]() {
+            u8 val =  memory.read8(addr);
+            if(val == 224 && (addr % 4 == 1)) {
+                int i = 0;
+                i += 1;
+            }
             OAM[oamAddr] = memory.read8(addr);
             // each such operation consumes 2 CPU cycles
             return 2;

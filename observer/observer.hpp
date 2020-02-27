@@ -10,12 +10,14 @@
 template<typename T>
 class Observer {
 public:
+    virtual ~Observer() {}
     virtual void update(T* observable, int eventType) = 0;
 };
 
 template<typename T>
 class Observable {
 public:
+    virtual ~Observable() {}
     void attach(Observer<T>* obs) {
         observers.push_back(obs);
     }

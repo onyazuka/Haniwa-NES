@@ -243,8 +243,9 @@ void PPU::visibleRender() {
         // unknown NT fetches
         break;
     }
-    if(cycle >= 3 && cycle <= 258) {
-        drawBackgroundPixel(cycle - 3, scanline);
+    // ppu begins to render pixels at tick=3(cycle=2)
+    if(cycle >= 2 && cycle <= 257) {
+        drawBackgroundPixel(cycle - 2, scanline);
         _renderInternalBckgShifts();
     }
     if(cycle > 329 && cycle <= 337) _renderInternalBckgShifts();

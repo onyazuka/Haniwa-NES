@@ -22,6 +22,11 @@ first empty sprite - y coord of 63 sprite, than sequential 0xff
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!JMP INDIRECT!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!11
 
+[Mappers]
+MMC1 - Registers, second article - consecutive writes to the serial port
+
 [BUGS]
 + Instruction - unnecessary read operations can have influence on some registers(0x2002 bit 7, for example) 
 
+
+SAVES - mapper

@@ -1,7 +1,7 @@
 #include "include/ppumemory.hpp"
 
-PPUMemory::PPUMemory(MapperInterface &_mapper, Mirroring _mirroring, Logger* _logger)
-    : memory{}, mapper{_mapper}, mirroring{_mirroring}, logger{_logger} {}
+PPUMemory::PPUMemory(MapperInterface &_mapper, Logger* _logger)
+    : memory{}, mapper{_mapper}, logger{_logger} {}
 
 u8 PPUMemory::read(Address address) {
     auto optionalRes = mapper.readCHR(address);
@@ -39,12 +39,13 @@ Address PPUMemory::_fixAddress(Address address) {
 }
 
 Address PPUMemory::_applyMirroring(Address address) {
-    switch (mirroring) {
+    switch (mapper.mirroring()) {
     case Mirroring::Horizontal: if (address & 0x400) return address - 0x400; else return address;
     case Mirroring::Vertical: if(address & 0x800) return address - 0x800; else return address;
+    case Mirroring::OneScreenLower: case Mirroring::OneScreenUpper: return 0x2000 + (address % 0x400);
 #ifdef DEBUG
     default:
-        if(logger) logger->log(LogLevel::Error, "PPUMemory::_applyMirroring() - unknown mirroring type");  throw UnknownMirroringType{};
+        if (logger) { logger->log(LogLevel::Error, "PPUMemory::_applyMirroring() - unknown mirroring type");  throw UnknownMirroringType{}; };
 #else
     default: throw UnknownMirroringType{};
 #endif

@@ -6,7 +6,7 @@
 // MAPPER 0 (also known as NROM)
 
 /*
-    Can one or two 16kb banks.
+    Can have one 32kb or two 16kb banks.
     1 bank:
         mapped into $8000-$BFFF and mirrored on $C000 - $FFFF
     2 banks:

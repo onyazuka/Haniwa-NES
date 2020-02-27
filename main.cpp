@@ -26,7 +26,7 @@ public:
         SDL_Quit();
     }
 
-    void update(PPU*, int eventType) {
+    void update(PPU*, int) {
         /*if(ppu->currentFrame() == 60) {
             nes.getController(1).updateKey(StandardController::Key::Start, true);
         }*/
@@ -108,11 +108,7 @@ int main()
 
     const std::string savePath = "/home/onyazuka/nesSaves/Excitebike.hns";
 
-<<<<<<< HEAD
-    nes.load(savePath);
-=======
     //nes.load(savePath);
->>>>>>> tmp2
     std::thread cpuThread([&nes, &savePath]() {
         while(true) {
             nes.doInstruction();

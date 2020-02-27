@@ -26,11 +26,13 @@ using Sptr = std::shared_ptr<T>;
 
 typedef i8 RelativeOffset;
 typedef u8 ZeroPageAddress;
-typedef u16 Address;
+typedef u32 Address;
 
 const int PAGE_SIZE = 0x100;
+const int PRG_BANK_SIZE = 0x4000;
+const int CHR_BANK_SIZE = 0x1000;
 
-const std::vector<u8> SupportedMappers{0};
+const std::vector<u8> SupportedMappers{0,1};
 
 enum class AddressationMode {
     Implied,
@@ -83,7 +85,9 @@ enum class InterruptType {
 
 enum class Mirroring {
     Horizontal,
-    Vertical
+    Vertical,
+    OneScreenLower,
+    OneScreenUpper,
 };
 
 class UnknownMirroringType {};

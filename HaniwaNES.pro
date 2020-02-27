@@ -21,7 +21,8 @@ SOURCES += main.cpp \
     nes.cpp \
     core/mappers/mappers.cpp \
     serialize/serializer.cpp \
-    core/input.cpp
+    core/input.cpp \
+    core/mappers/mapper1.cpp
 
 HEADERS += \
     core/include/cpu.hpp \
@@ -39,4 +40,5 @@ HEADERS += \
     observer/observer.hpp \
     nes.hpp \
     serialize/serializer.hpp \
-    core/include/input.hpp
+    core/include/input.hpp \
+    core/include/mappers/mapper1.hpp

@@ -13,6 +13,7 @@ enum class LogLevel {
 
 class Logger {
 public:
+    virtual ~Logger() {}
     virtual void log(LogLevel level, const std::string& msg) = 0;
 };
 

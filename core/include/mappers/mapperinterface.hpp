@@ -26,6 +26,7 @@ public:
     virtual std::optional<bool> write16(Address offset, u16 val);
     virtual std::optional<u8> readCHR(Address);
     virtual std::optional<bool> writeCHR(Address offset, u8 val);
+    inline Mirroring mirroring() const { return _mirroring; }
 protected:
     virtual bool checkAddress(Address address) const = 0;
     virtual Address addressFix(Address address) const = 0;
@@ -34,6 +35,7 @@ protected:
 
     ROM& rom;
     Logger* logger;
+    Mirroring _mirroring;
 };
 
 class InvalidMapperException {};
