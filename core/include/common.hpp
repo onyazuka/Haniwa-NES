@@ -8,7 +8,7 @@
 #include "serialize/serializer.hpp"
 
 // uncomment this for debug
-//#define DEBUG
+#define DEBUG
 
 typedef int8_t i8;
 typedef int16_t i16;

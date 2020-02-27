@@ -181,6 +181,7 @@ u8 CPU::step() {
             memory.write8(instruction.address, res);
             regs.setZero(res).setNegative(res);
             instruction.cycles += 2;
+            if(opcode == 0x1E) instruction.cycles = 7;  // without regard to cross page
         }
         break;
     }
@@ -241,6 +242,7 @@ u8 CPU::step() {
         memory.write8(instruction.address, res);
         // not standard cycle count
         instruction.cycles += 2;
+        if (opcode == 0xDE) instruction.cycles = 7;
         break;
     }
     // DEX
@@ -258,6 +260,7 @@ u8 CPU::step() {
         regs.setZero(res).setNegative(res);
         memory.write8(instruction.address, res);
         instruction.cycles += 2;
+        if (opcode == 0xFE) instruction.cycles = 7;
         break;
     }
     // INX
@@ -310,6 +313,7 @@ u8 CPU::step() {
             memory.write8(instruction.address, res);
             regs.setZero(res).setNegative(res);
             instruction.cycles += 2;
+            if (opcode == 0x5E) instruction.cycles = 7;
         }
         break;
     }
@@ -345,6 +349,7 @@ u8 CPU::step() {
             memory.write8(instruction.address, res);
             regs.setZero(res).setNegative(res);
             instruction.cycles += 2;
+            if (opcode == 0x3E) instruction.cycles = 7;
         }
         break;
     }
@@ -364,6 +369,7 @@ u8 CPU::step() {
             memory.write8(instruction.address, res);
             regs.setZero(res).setNegative(res);
             instruction.cycles += 2;
+            if (opcode == 0x7E) instruction.cycles = 7;
         }
         break;
     }
@@ -389,6 +395,8 @@ u8 CPU::step() {
     // STA
     case 0x85: case 0x95: case 0x8D: case 0x9D: case 0x99: case 0x81: case 0x91:
         memory.write8(instruction.address, regs.A);
+        if (opcode == 0x9D || opcode == 0x99) instruction.cycles = 5;
+        else if (opcode == 0x91) instruction.cycles = 6;
         break;
     // STX
     case 0x86: case 0x96: case 0x8E:
@@ -475,6 +483,10 @@ void CPU::_frameSync() {
     auto sleepDuration = std::chrono::nanoseconds(MaxFrameDurationNs - (curTimePoint - syncTimePoint).count());
     std::this_thread::sleep_for(std::chrono::nanoseconds(sleepDuration));
     syncTimePoint = curTimePoint;
+    if(ppu.currentFrame() == 100) {
+        int i = 0;
+        i += 1;
+    }
 }
 
 void CPU::_processEventQueue() {
@@ -507,11 +519,6 @@ void CPU::oamDmaWrite() {
         // this will make address cyclic(256 bytes)
         u8 oamAddr = startOAMAddr + i;
         emulateCycles([this, &OAM, i, addr, startOAMAddr, oamAddr]() {
-            u8 val =  memory.read8(addr);
-            if(val == 224 && (addr % 4 == 1)) {
-                int i = 0;
-                i += 1;
-            }
             OAM[oamAddr] = memory.read8(addr);
             // each such operation consumes 2 CPU cycles
             return 2;

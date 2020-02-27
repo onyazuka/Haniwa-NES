@@ -277,8 +277,8 @@ void PPU::pixelRender() {
     // OAMADDR is set to 0 during those ticks
     case 257 ... 320: _spriteEvaluateFetchData(); ppuRegisters.writeOamaddr(0); break;
     }
-    // it should be called AFTER 258 cycle background pixel rendering. There is exactly 8 cycles to draw sprite line before it's registers will be cleared.
-    if(cycle >= 258 && cycle <= 321) drawSpritePixel(scanline);
+    // it should be called AFTER 257 cycle background pixel rendering. There is exactly 8 cycles to draw sprite line before it's registers will be cleared.
+    if(cycle >= 257 && cycle <= 320) drawSpritePixel(scanline);
     if((cycle >= 265 && cycle <= 321) && (((cycle - 1) % 8) == 0)) _spriteEvaluateFedData();
 }
 
@@ -352,7 +352,7 @@ void PPU::drawSpritePixel(u8 yCoord) {
     u8 spritePriority = (spriteAttributeBytes[i] & 0b00100000) >> 5;
 
     // if not have any or have a transparent sprite here - override
-    if(ppuMap.testSprite(spriteXCoord)) {
+    if(ppuMap.testSprite(spriteXCoord) && spriteXCoord != 255) {
         _image[yCoord * 256 + spriteXCoord] = colorMultiplexer(bckgTransparent, _image[(yCoord << 8) + spriteXCoord], spriteTransparent, spriteColor, spritePriority);
     }
 
@@ -406,17 +406,19 @@ Address PPU::_getPatternLowerOAM(u8 index) {
     u8 spriteIndex = (cycle - 257) / 8;
     bool flipVertical = secondaryOAM[spriteIndex * 4 + 2] & 0b10000000;
     // vertical flip can be described as reverse of current fine y scroll
-    u8 fineYScroll = scanline + 1 - secondaryOAM[spriteIndex * 4];
-    if (flipVertical) fineYScroll = ~fineYScroll;
     // 8x8 sprites
     if (ppuRegisters.readPpuctrlSpriteSize() == 0) {
-        // 8x16 sprites aligned in pattern table as: lower1, higher1, lower2, higher2
-        u8 ptOffset = fineYScroll < 8 ? fineYScroll : (fineYScroll + 8);
-        return ((ppuRegisters.readPpuctrlSpritePTAddrt() * 0x1000) | (index * 16)) + ptOffset;
+        u8 fineYScroll = (scanline + 1 - secondaryOAM[spriteIndex * 4]) % 8;
+        if (flipVertical) fineYScroll = 7 - fineYScroll;
+        return ((ppuRegisters.readPpuctrlSpritePTAddrt() * 0x1000) | (index * 16)) + fineYScroll;
     }
     // 8x16 sprites
     else {
-        return (((index & 1) * 0x1000) | (((index & 0b11111110) >> 1) * 16)) + fineYScroll;
+        // 8x16 sprites aligned in pattern table as: lower1, higher1, lower2, higher2
+        u8 fineYScroll = (scanline + 1 - secondaryOAM[spriteIndex * 4]) % 16;
+        if (flipVertical) fineYScroll = 15 - fineYScroll;
+        u8 ptOffset = fineYScroll < 8 ? fineYScroll : (fineYScroll + 8);
+        return (((index & 1) * 0x1000) | ((index & 0b11111110) * 16)) + ptOffset;
     }
 }
 
@@ -549,11 +551,16 @@ void PPU::_spriteEvaluate() {
         n = ppuRegisters.readOamaddr() / 4;
         secondarySlot = 0;
     }
+    if(frame==175 && scanline == 214) {
+        int i = 0;
+        i += 1;
+    }
     // even cycles - writing to secondary OAM
     if (!(cycle % 2)) {
         // if oamaddr at start of dot 65 is not 0, overflow can occure. In this case, just ignoring next values
         if (n >= 64) return;
         u8 tempY = OAM[n * 4];
+        secondaryOAM[secondarySlot * 4] = tempY;
         // sprite is on the next scanline
         u8 spriteHeight = ppuRegisters.readPpuctrlSpriteSize() ? 16 : 8;
         if((secondarySlot < 8) && tempY <= (scanline + 1) && (scanline + 1) < (tempY + spriteHeight)) {
@@ -578,8 +585,19 @@ void PPU::_spriteEvaluateFetchData() {
     // garbage reads NOT NEEDED
     case 1: break;
     case 3: break;
-    case 5: pbAddr = _getPatternLowerOAM(secondaryOAM[spriteIndex * 4 + 1]); spriteLowPatternByte = memory.read(pbAddr); break;
-    case 7: spriteHighPatternByte = memory.read(pbAddr + 8); break;
+    case 5: {
+        if(secondaryOAM[spriteIndex * 4] >= 240) spriteLowPatternByte = 0;
+        else {
+            pbAddr = _getPatternLowerOAM(secondaryOAM[spriteIndex * 4 + 1]);
+            spriteLowPatternByte = memory.read(pbAddr);
+        }
+        break;
+    }
+    case 7: {
+        if(secondaryOAM[spriteIndex * 4] >= 240) spriteHighPatternByte = 0;
+        else spriteHighPatternByte = memory.read(pbAddr + 8);
+        break;
+    }
     }
 }
 
