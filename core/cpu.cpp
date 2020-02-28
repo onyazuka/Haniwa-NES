@@ -121,7 +121,7 @@ void CPU::run() {
 void CPU::exec() {
     auto ppuFrameBefore = ppu.currentFrame();
     Instruction instruction = fetchInstruction();
-    u8 cyclesBefore = instruction.cycles;
+    u8 cyclesBefore = instruction.cycles - 1;
     emulateCycles([this, &instruction]() { return instruction.cycles - 1;  }, false);
     emulateCycles([this, &instruction, cyclesBefore]() { executeInstruction(instruction); return instruction.cycles - cyclesBefore; }, true);
     auto ppuFrameAfter = ppu.currentFrame();
@@ -151,7 +151,6 @@ Instruction CPU::fetchInstruction() {
 
 // returns number of cycles instruction elapsed
 u8 CPU::executeInstruction(Instruction& instruction) {
-
     Registers& regs = registers();
     u16 nextBranchAddress = 0;          // set by branching operation
     u16 nextUnconditionalAddress = 0;   // set by any other operation
@@ -226,17 +225,23 @@ u8 CPU::executeInstruction(Instruction& instruction) {
     // CLV
     case 0xB8: regs.setOverflow(false); break;
     // CMP
-    case 0xC9: case 0xC5: case 0xD5: case 0xCD: case 0xDD: case 0xD9: case 0xC1: case 0xD1:
-        regs.setCarry(regs.A >= instruction.val8()).setZero(regs.A == instruction.val8()).setNegative(regs.A < instruction.val8());
+    case 0xC9: case 0xC5: case 0xD5: case 0xCD: case 0xDD: case 0xD9: case 0xC1: case 0xD1: {
+        u8 res = regs.A - instruction.val8();
+        regs.setCarry(regs.A >= instruction.val8()).setZero(regs.A == instruction.val8()).setNegative(res);
         break;
+    }
     // CPX
-    case 0xE0: case 0xE4: case 0xEC:
-        regs.setCarry(regs.X >= instruction.val8()).setZero(regs.X == instruction.val8()).setNegative(regs.X < instruction.val8());
+    case 0xE0: case 0xE4: case 0xEC: {
+        u8 res = regs.X - instruction.val8();
+        regs.setCarry(regs.X >= instruction.val8()).setZero(regs.X == instruction.val8()).setNegative(res);
         break;
+    }
     // CPY
-    case 0xC0: case 0xC4: case 0xCC:
-        regs.setCarry(regs.Y >= instruction.val8()).setZero(regs.Y == instruction.val8()).setNegative(regs.Y < instruction.val8());
+    case 0xC0: case 0xC4: case 0xCC: {
+        u8 res = regs.Y - instruction.val8();
+        regs.setCarry(regs.Y >= instruction.val8()).setZero(regs.Y == instruction.val8()).setNegative(res);
         break;
+    }
     // DEC
     case 0xC6: case 0xD6: case 0xCE: case 0xDE: {
         u8 res = instruction.val8() - 1;

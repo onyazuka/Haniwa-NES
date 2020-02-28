@@ -6,6 +6,9 @@ Memory::Memory(MapperInterface& _mapper, PPU& _ppu, StandardController& _contr1,
     : memory{}, mapper{_mapper}, ppu{_ppu}, stController1{_contr1}, stController2{_contr2} {}
 
 u8 Memory::read8(Address offset) {
+    auto optionalRes = mapper.read8(offset);
+    if(optionalRes) return optionalRes.value();
+    offset = _mirrorAddressFix(offset);
     // ppu
     if(isInPPURegisters(offset)) {
         auto& ppuregs = ppu.accessPPURegisters();
@@ -25,13 +28,13 @@ u8 Memory::read8(Address offset) {
     else if (offset == 0x4016) return stController1.read();
     else if (offset == 0x4017) return stController2.read();
     // others
-    auto optionalRes = mapper.read8(offset);
-    if(optionalRes) return optionalRes.value();
-    Address fixedAddress = _mirrorAddressFix(offset);
-    return memory[fixedAddress];
+    return memory[offset];
 }
 
 Memory& Memory::write8(Address offset, u8 val) {
+    auto optionalRes = mapper.write8(offset, val);
+    if(optionalRes) return *this;
+    offset = _mirrorAddressFix(offset);
     // ppu
     if(isInPPURegisters(offset)) {
         auto& ppuregs = ppu.accessPPURegisters();
@@ -54,10 +57,7 @@ Memory& Memory::write8(Address offset, u8 val) {
         return *this;
     }
     // others
-    auto optionalRes = mapper.write8(offset, val);
-    if(optionalRes) return *this;
-    Address fixedAddress = _mirrorAddressFix(offset);
-    memory[fixedAddress] = val;
+    memory[offset] = val;
     return *this;
 }
 
