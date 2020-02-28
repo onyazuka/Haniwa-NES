@@ -56,6 +56,10 @@ Memory& Memory::write8(Address offset, u8 val) {
         else if (val == 1) stController2.strobe(val);
         return *this;
     }
+    if(offset >= 0x6000 && offset < 0x8000) {
+        int i = 0;
+        i += 1;
+    }
     // others
     memory[offset] = val;
     return *this;

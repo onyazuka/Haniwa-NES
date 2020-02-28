@@ -50,13 +50,13 @@ NESHeader ROM::_makeHeader(std::ifstream &romIfs) {
 // returns true if header is ok, else returns false
 bool ROM::_checkHeader(const NESHeader& header) {
     bool warnings = false;
-    if(header.persistentMemoryOnCartridge) { logger->log(LogLevel::Warning, "Persistent memory on cartridge is not supported!"); warnings = true; }
+    //if(header.persistentMemoryOnCartridge) { logger->log(LogLevel::Warning, "Persistent memory on cartridge is not supported!"); warnings = true; }
     if(header.trainer) { logger->log(LogLevel::Warning, "Trainer is not supported!"); warnings = true; }
     if(header.ignoreMirroringProvide4ScreenVRAM) { logger->log(LogLevel::Warning, "Ignore mirroring provide 4 screen VRAM is not supported!"); warnings = true; }
     if(header.vsUnisystem) { logger->log(LogLevel::Warning, "VS Unisystem is not supported!"); warnings = true; }
     if(header.playChoice) { logger->log(LogLevel::Warning, "PlayChoice is not supported!"); warnings = true; }
     if(header.nes2_0) { logger->log(LogLevel::Warning, "NES2.0 is not supported!"); warnings = true; }
-    if(header.PRGRamSize8Kb) { logger->log(LogLevel::Warning, "PRGRAM is not supported!"); warnings = true; }
+    if(header.PRGRamSize8Kb) { logger->log(LogLevel::Warning, "PRGRAM size is not supported!"); warnings = true; }
     if(header.tvSystem) { logger->log(LogLevel::Warning, "TV system flag is not supported!"); warnings = true; }
     return !warnings;
 }

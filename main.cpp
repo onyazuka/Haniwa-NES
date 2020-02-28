@@ -100,7 +100,7 @@ int main()
 
     std::ofstream ofs("/home/onyazuka/log.txt");
     OstreamLogger* oslogger = new OstreamLogger(std::cout, 0b1110);
-    NES nes("/home/onyazuka/cpp/ProjectsMy/HaniwaNES/roms/Excitebike/Excitebike (E) [!].nes", oslogger);
+    NES nes("/home/onyazuka/cpp/ProjectsMy/HaniwaNES/roms/Dr. Mario/Dr. Mario (E) [!].nes", oslogger);
 
     PPU& ppu = nes.getPpu();
     GuiSDL* gui = new GuiSDL(256, 240, &ppu, nes);

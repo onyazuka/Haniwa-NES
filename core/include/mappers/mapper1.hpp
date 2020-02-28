@@ -17,6 +17,7 @@ private:
     Address addressCHRFix(Address address) const;
 
     void initPRGBanks();
+    void fix();
     void fixPRGBanks();
     void fixCHRBanks();
     void fixMirroring();

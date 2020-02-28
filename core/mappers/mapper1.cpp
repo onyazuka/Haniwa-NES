@@ -37,9 +37,7 @@ std::optional<bool> Mapper1::write8(Address offset, u8 val) {
             case 3: rPrgBank = rLoad; break;
             }
             rLoad = 0;
-            fixPRGBanks();
-            fixCHRBanks();
-            fixMirroring();
+            fix();
         }
     }
     return true;
@@ -62,15 +60,19 @@ bool Mapper1::checkCHRAddress(Address address) const {
 
 Address Mapper1::addressCHRFix(Address address) const {
     bool usingBank0 = address < 0x1000;
-    if(_mirroring == Mirroring::OneScreenLower) return (chrBank0 * CHR_BANK_SIZE) + address;
-    else if(_mirroring == Mirroring::OneScreenUpper) return (chrBank1 * CHR_BANK_SIZE) + address;
-    else if (usingBank0) return (chrBank0 * CHR_BANK_SIZE) + address;
+    if (usingBank0) return (chrBank0 * CHR_BANK_SIZE) + address;
     else return (chrBank1 * CHR_BANK_SIZE) + (address - 0x1000);
 }
 
 // initial mode is mode 3 (?)
 void Mapper1::initPRGBanks() {
     rControl |= 0x0c;
+    fixPRGBanks();
+}
+
+void Mapper1::fix() {
+    fixMirroring();
+    fixCHRBanks();
     fixPRGBanks();
 }
 
