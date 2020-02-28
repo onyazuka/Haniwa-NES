@@ -8,7 +8,7 @@
 #include "serialize/serializer.hpp"
 
 // uncomment this for debug
-#define DEBUG
+//#define DEBUG
 
 typedef int8_t i8;
 typedef int16_t i16;
@@ -75,6 +75,15 @@ const std::array<AddressationMode, 256> AddrModesByOpcode = {
     IMM, IIR, IMM, IIR, ZP0, ZP0, ZP0, ZP0, IML, IMM, IML, IMM, ABS, ABS, ABS, ABS, REL, IIX, IML, IIX, ZPX, ZPX, ZPX, ZPX, IML, ABY, IML, ABY, ABX, ABX, ABX, ABX,
     IMM, IIR, IMM, IIR, ZP0, ZP0, ZP0, ZP0, IML, IMM, IML, IMM, ABS, ABS, ABS, ABS, REL, IIX, IML, IIX, ZPX, ZPX, ZPX, ZPX, IML, ABY, IML, ABY, ABX, ABX, ABX, ABX,
 };
+
+const std::array<u8, 256> CyclesByOpcode = {7, 6, 0, 0, 0, 3, 5, 0, 3, 2, 2, 0, 0, 4, 6, 0, 2, 5, 0, 0, 0, 4, 6, 0, 2, 4, 0, 0, 0, 4, 7, 0,
+                                            6, 6, 0, 0, 3, 3, 5, 0, 4, 2, 2, 0, 4, 4, 6, 0, 2, 5, 0, 0, 0, 4, 6, 0, 2, 4, 0, 0, 0, 4, 7, 0,
+                                            6, 6, 0, 0, 0, 3, 5, 0, 3, 2, 2, 0, 3, 4, 6, 0, 2, 5, 0, 0, 0, 4, 6, 0, 2, 4, 0, 0, 0, 4, 7, 0,
+                                            6, 6, 0, 0, 0, 3, 5, 0, 4, 2, 2, 0, 5, 4, 6, 0, 2, 5, 0, 0, 0, 4, 6, 0, 2, 4, 0, 0, 0, 4, 7, 0,
+                                            0, 6, 0, 0, 3, 3, 3, 0, 2, 0, 2, 0, 4, 4, 4, 0, 2, 6, 0, 0, 4, 4, 4, 0, 2, 5, 2, 0, 0, 5, 0, 0,
+                                            2, 6, 2, 0, 3, 3, 3, 0, 2, 2, 2, 0, 4, 4, 4, 0, 2, 5, 0, 0, 4, 4, 4, 0, 2, 4, 2, 0, 4, 4, 4, 0,
+                                            2, 6, 0, 0, 3, 3, 5, 0, 2, 2, 2, 0, 4, 4, 6, 0, 2, 5, 0, 0, 0, 4, 6, 0, 2, 4, 0, 0, 0, 4, 7, 0,
+                                            2, 6, 0, 0, 3, 3, 5, 0, 2, 2, 2, 0, 4, 4, 6, 0, 2, 5, 0, 0, 0, 4, 6, 0, 2, 4, 0, 0, 0, 4, 7, 0};
 
 enum class InterruptType {
     BRK,

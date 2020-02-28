@@ -49,5 +49,5 @@ void NES::load(const std::string& fname) {
 }
 
 void NES::waitUntilEventQueueIsEmpty() {
-    while(!cpu.eventQueueEmpty()) cpu.execInstruction();
+    while(!cpu.eventQueueEmpty()) cpu.exec();
 }

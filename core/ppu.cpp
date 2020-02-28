@@ -551,10 +551,6 @@ void PPU::_spriteEvaluate() {
         n = ppuRegisters.readOamaddr() / 4;
         secondarySlot = 0;
     }
-    if(frame==175 && scanline == 214) {
-        int i = 0;
-        i += 1;
-    }
     // even cycles - writing to secondary OAM
     if (!(cycle % 2)) {
         // if oamaddr at start of dot 65 is not 0, overflow can occure. In this case, just ignoring next values

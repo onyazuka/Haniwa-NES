@@ -60,12 +60,15 @@ struct Registers {
 class Instruction {
 public:
     Instruction() {}
-    Instruction(Memory* _memory, std::optional<u8> _val8, Address _address, u16 arg, u8 _length, u8 _cycles)
-        : address{_address}, argument{arg}, length{_length}, cycles{_cycles}, memory{_memory}, value8{_val8} {}
+    Instruction(Memory* _memory, std::optional<u8> _val8, Address _address, u16 arg, u8 _length, u8 _cycles, AddressationMode addrMode, Address offset, u8 opcode)
+        : address{_address}, argument{arg}, length{_length}, cycles{_cycles}, addrMode{addrMode}, offset{offset}, opcode{opcode}, memory{_memory}, value8{_val8} {}
     Address address;
     u16 argument;
     u8 length;          // in bytes
     u8 cycles;
+    AddressationMode addrMode;
+    Address offset;
+    u8 opcode;
     // value will be read only once and only if needed
     inline u8 val8() { if(!value8) value8 = memory->read8(address); return value8.value(); }
     inline bool hasVal8() const { return value8.has_value(); }
@@ -83,17 +86,19 @@ public:
     inline auto getInstructionCounter() const { return instructionCounter; }
     void run();
     // with all synchonizations
-    void execInstruction();
+    void exec();
     inline std::thread runInSeparateThread() { return std::thread([this] { run(); }); }
-    u8 step();
 
     // serialization
     Serialization::BytesCount serialize(std::string &buf);
     Serialization::BytesCount deserialize(const std::string &buf, Serialization::BytesCount offset);
 
 private:
+    Instruction fetchInstruction();
+    u8 executeInstruction(Instruction& instruction);
+
     void interrupt(InterruptType, Address nextPC);
-    void emulateCycles(std::function<int(void)> f);
+    void emulateCycles(std::function<int(void)> f, bool processEvents);
     void oamDmaWrite();
     // stack operations
     inline CPU& push(u8 val) { memory.write8((0x100 + registers().S), val); registers().S -= 1; return *this; }
@@ -118,6 +123,6 @@ private:
     u64 instructionCounter;
 };
 
-Instruction makeInstruction(CPU& cpu, AddressationMode addrMode, Address offset);
+Instruction makeInstruction(CPU& cpu, AddressationMode addrMode, Address offset, u8 opcode);
 
 std::string getPrettyInstruction(u8 opcode, AddressationMode addrMode, Address curAddress, Instruction instruction);

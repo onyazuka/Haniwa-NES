@@ -10,7 +10,7 @@ class NES {
 public:
     NES(const std::string& romFname, Logger* logger=nullptr);
 
-    inline void doInstruction() { cpu.execInstruction(); }
+    inline void doInstruction() { cpu.exec(); }
     void save(const std::string& fname);
     void load(const std::string& fname);
 

@@ -13,82 +13,76 @@ Registers::Registers()
     return address, 8bit value read from the address, 16 bit value, length of instruction and cycles count(basic minimal value for this addressation mode)
         (some special instruction like BRK may change this value later)
 */
-Instruction makeInstruction(CPU& cpu, AddressationMode addrMode, Address offset) {
+Instruction makeInstruction(CPU& cpu, AddressationMode addrMode, Address offset, u8 opcode) {
     // skipping opcode
     ++offset;
     Address addr = 0;
     u16 argument = 0;
     u8 length = 1;      // at least opcode
     u8 cycles = 0;
+    std::optional<u8> val8 = std::nullopt;
     Memory& memory = cpu.getMemory();
     const Registers& registers = cpu.registers();
     // cross page can occure when using AbsoluteX, AbsoluteY or IndirectIndexed modes
     bool crossPage = false;
     if (addrMode == AddressationMode::Implied || addrMode == AddressationMode::Accumulator) {
-        return Instruction{&memory,std::nullopt,0,0,1,2};
+        addr = 0;
+        argument = 0;
+        length = 1;
     }
     else if (addrMode == AddressationMode::Immediate) {
-        // 0 means we don't have any address
-        return Instruction{&memory,memory.read8(offset), 0, 0, 2, 2};
+        addr = 0;
+        argument = 0;
+        length = 2;
+        val8 = memory.read8(offset);
     }
     else if (addrMode == AddressationMode::ZeroPage) {
         addr = memory.read8(offset);
         argument = addr;
         length = 2;
-        cycles = 3;
     }
     else if (addrMode == AddressationMode::ZeroPageX) {
         argument = memory.read8(offset);
         addr = (argument + registers.X) % 0x100;
         length = 2;
-        cycles = 4;
     }
     else if (addrMode == AddressationMode::ZeroPageY) {
         argument = memory.read8(offset);
         addr = (argument + registers.Y) % 0x100;
         length = 2;
-        cycles = 4;
     }
     else if (addrMode == AddressationMode::Relative) {
         argument = memory.read8(offset);
         // +1 because relative offset is calculated from place AFTER the instruction(and any relative addressing instruction has size 2 bytes)
         addr = offset + 1 + (i8)(argument);
         length = 2;
-        cycles = 2;
     }
     else if (addrMode == AddressationMode::Absolute) {
         argument = memory.read16(offset);
         addr = argument;
         length = 3;
-        cycles = 4;
     }
     else if (addrMode == AddressationMode::AbsoluteX) {
         argument = memory.read16(offset);
         addr = argument + registers.X;
         crossPage = (argument & 255) != (addr & 255);
         length = 3;
-        cycles = crossPage ? 5 : 4;
-
     }
     else if (addrMode == AddressationMode::AbsoluteY) {
         argument = memory.read16(offset);
         addr = argument + registers.Y;
         crossPage = (argument & 255) != (addr & 255);
         length = 3;
-        cycles = crossPage ? 5 : 4;
-
     }
     else if (addrMode == AddressationMode::Indirect) {
         argument = memory.read16(offset);
         addr = memory.read16(argument);
         length = 3;
-        cycles = 5;
     }
     else if (addrMode == AddressationMode::IndexedIndirect) {
         argument = memory.read8(offset);
         addr = memory.read16(argument + registers.X);
         length = 2;
-        cycles = 6;
     }
     else if (addrMode == AddressationMode::IndirectIndexed) {
         argument = memory.read8(offset);
@@ -96,12 +90,19 @@ Instruction makeInstruction(CPU& cpu, AddressationMode addrMode, Address offset)
         addr = base + registers.Y;
         crossPage = (base & 255) != (addr & 255);
         length = 2;
-        cycles = crossPage ? 6 : 5;
     }
     else {
         throw UnknownAddressModeException{};
     }
-    return Instruction{&memory, std::nullopt, addr, argument, length, cycles};
+    cycles = CyclesByOpcode[opcode];
+    switch(opcode) {
+    case 0x7D: case 0x79: case 0x71: case 0x3D: case 0x39: case 0x31: case 0xDD: case 0xD9: case 0xD1: case 0x5D: case 0x59: case 0x51:
+    case 0xBD: case 0xB9: case 0xB1: case 0xBE: case 0xBC: case 0x1D: case 0x19: case 0x11: case 0xFD: case 0xF9: case 0xF1: {
+        if(crossPage) cycles += 1;
+        break;
+    }
+    }
+    return Instruction{&memory, val8, addr, argument, length, cycles, addrMode, offset - 1, opcode};
 }
 
 CPU::CPU(Memory &_memory, PPU& _ppu, EventQueue& _eventQueue, Logger* _logger)
@@ -113,31 +114,29 @@ CPU::CPU(Memory &_memory, PPU& _ppu, EventQueue& _eventQueue, Logger* _logger)
 void CPU::run() {
     // PARTY HARD
     while(true) {
-        execInstruction();
+        exec();
     };
 }
 
-void CPU::execInstruction() {
+void CPU::exec() {
     auto ppuFrameBefore = ppu.currentFrame();
-    emulateCycles([this]() { return step(); });
-    _processEventQueue();
+    Instruction instruction = fetchInstruction();
+    u8 cyclesBefore = instruction.cycles;
+    emulateCycles([this, &instruction]() { return instruction.cycles - 1;  }, false);
+    emulateCycles([this, &instruction, cyclesBefore]() { executeInstruction(instruction); return instruction.cycles - cyclesBefore; }, true);
     auto ppuFrameAfter = ppu.currentFrame();
     if(ppuFrameBefore != ppuFrameAfter) _frameSync();
 }
 
-// returns number of cycles instruction elapsed
-u8 CPU::step() {
-    if(instructionCounter == 4) {
-        int i = 0;
-        i += 1;
-    }
+Instruction CPU::fetchInstruction() {
     Address offset = registers().PC;
     u8 opcode = memory.read8(offset);
     AddressationMode addrMode;
     Instruction instruction;
+
     try {
         addrMode = AddrModesByOpcode[opcode];
-        instruction = makeInstruction(*this, addrMode, offset);
+        instruction = makeInstruction(*this, addrMode, offset, opcode);
     }
     catch (UnknownOpcodeException) {
         if(logger) logger->log(LogLevel::Error, "CPU::step() - unknown opcode " + std::to_string(opcode));
@@ -147,10 +146,16 @@ u8 CPU::step() {
         if(logger) logger->log(LogLevel::Error, "CPU::step() - unknown address mode " + std::to_string((int)addrMode));
         throw UnknownOpcodeException{};
     }
+    return instruction;
+}
+
+// returns number of cycles instruction elapsed
+u8 CPU::executeInstruction(Instruction& instruction) {
+
     Registers& regs = registers();
     u16 nextBranchAddress = 0;          // set by branching operation
     u16 nextUnconditionalAddress = 0;   // set by any other operation
-    switch(opcode) {
+    switch(instruction.opcode) {
     // ADC
     case 0x69: case 0x65: case 0x75: case 0x6D: case 0x7D: case 0x79: case 0x61: case 0x71: {
         u16 res = regs.A + instruction.val8() + regs.carry();
@@ -169,7 +174,7 @@ u8 CPU::step() {
     // ASL
     case 0x0A: case 0x06: case 0x16: case 0x0E: case 0x1E: {
         // accumulator
-        if (opcode == 0x0A) {
+        if (instruction.opcode == 0x0A) {
             regs.setCarry(regs.A & 0b10000000);
             regs.A <<= 1;
             regs.setZero(regs.A).setNegative(regs.A);
@@ -180,8 +185,6 @@ u8 CPU::step() {
             u8 res = instruction.val8() << 1;
             memory.write8(instruction.address, res);
             regs.setZero(res).setNegative(res);
-            instruction.cycles += 2;
-            if(opcode == 0x1E) instruction.cycles = 7;  // without regard to cross page
         }
         break;
     }
@@ -207,7 +210,6 @@ u8 CPU::step() {
     // BRK
     case 0x00: {
         interrupt(InterruptType::BRK, regs.PC + instruction.length);
-        instruction.cycles = 7;
         nextUnconditionalAddress = InterruptVectorAddress;
         break;
     }
@@ -240,9 +242,6 @@ u8 CPU::step() {
         u8 res = instruction.val8() - 1;
         regs.setZero(res).setNegative(res);
         memory.write8(instruction.address, res);
-        // not standard cycle count
-        instruction.cycles += 2;
-        if (opcode == 0xDE) instruction.cycles = 7;
         break;
     }
     // DEX
@@ -259,8 +258,6 @@ u8 CPU::step() {
         u8 res = instruction.val8() + 1;
         regs.setZero(res).setNegative(res);
         memory.write8(instruction.address, res);
-        instruction.cycles += 2;
-        if (opcode == 0xFE) instruction.cycles = 7;
         break;
     }
     // INX
@@ -270,18 +267,16 @@ u8 CPU::step() {
     // JMP
     case 0x4C: case 0x6C:
         // case of JMP indirect 6502 bug
-        if((opcode == 0x6C) && ((instruction.argument & 0xff) == 0xff)) {
+        if((instruction.opcode == 0x6C) && ((instruction.argument & 0xff) == 0xff)) {
             instruction.address = (memory.read8(instruction.argument & 0xFF00) << 8) + memory.read8(instruction.argument);
         }
         nextUnconditionalAddress = instruction.address;
-        if(opcode == 0x4C) instruction.cycles = 3;
         break;
     // JSR
     case 0x20:
         // push return address (minus one) on to the stack
-        push((u16)(offset + instruction.length - 1));
+        push((u16)(instruction.offset + instruction.length - 1));
         nextUnconditionalAddress = instruction.address;
-        instruction.cycles = 6;
         break;
     // LDA
     case 0xA9: case 0xA5: case 0xB5: case 0xAD: case 0xBD: case 0xB9: case 0xA1: case 0xB1:
@@ -301,7 +296,7 @@ u8 CPU::step() {
     // LSR
     case 0x4A: case 0x46: case 0x56: case 0x4E: case 0x5E: {
         // accumulator
-        if(opcode == 0x4A) {
+        if(instruction.opcode == 0x4A) {
             regs.setCarry(regs.A & 0b1);
             regs.A >>= 1;
             regs.setZero(regs.A).setNegative(regs.A);
@@ -312,31 +307,29 @@ u8 CPU::step() {
             regs.setCarry(instruction.val8() & 0b1);
             memory.write8(instruction.address, res);
             regs.setZero(res).setNegative(res);
-            instruction.cycles += 2;
-            if (opcode == 0x5E) instruction.cycles = 7;
         }
         break;
     }
     // NOP
-    case 0xEA: instruction.cycles = 2; break;
+    case 0xEA: break;
     // ORA
     case 0x09: case 0x05: case 0x15: case 0x0D: case 0x1D: case 0x19: case 0x01: case 0x11:
         regs.A |= instruction.val8();
         regs.setZero(regs.A).setNegative(regs.A);
         break;
     // PHA
-    case 0x48: push(regs.A); instruction.cycles = 3; break;
+    case 0x48: push(regs.A); break;
     // PHP
     // ??????????? SHOULD I SET B FLAG ??????????????????
-    case 0x08: regs.setBFlag(true); push(regs.P); instruction.cycles = 3; break;
+    case 0x08: regs.setBFlag(true); push(regs.P); break;
     // PLA
-    case 0x68: regs.A = top8(); pop8(); regs.setZero(regs.A).setNegative(regs.A); instruction.cycles = 4; break;
+    case 0x68: regs.A = top8(); pop8(); regs.setZero(regs.A).setNegative(regs.A); break;
     // PLP
-    case 0x28: regs.P = top8(); pop8(); instruction.cycles = 4; break;
+    case 0x28: regs.P = top8(); pop8(); break;
     // ROL
     case 0x2A: case 0x26: case 0x36: case 0x2E: case 0x3E: {
         // accumulator
-        if (opcode == 0x2A) {
+        if (instruction.opcode == 0x2A) {
             u8 res = (regs.A << 1) | regs.carry();
             regs.setCarry(regs.A & 0b10000000);
             regs.A = res;
@@ -348,15 +341,13 @@ u8 CPU::step() {
             regs.setCarry(instruction.val8() & 0b10000000);
             memory.write8(instruction.address, res);
             regs.setZero(res).setNegative(res);
-            instruction.cycles += 2;
-            if (opcode == 0x3E) instruction.cycles = 7;
         }
         break;
     }
     // ROR
     case 0x6A: case 0x66: case 0x76: case 0x6E: case 0x7E: {
         // accumulator
-        if(opcode == 0x6A) {
+        if(instruction.opcode == 0x6A) {
             u8 res = (regs.A >> 1) | (regs.carry() << 7);
             regs.setCarry(regs.A & 1);
             regs.A = res;
@@ -368,15 +359,13 @@ u8 CPU::step() {
             regs.setCarry(instruction.val8() & 1);
             memory.write8(instruction.address, res);
             regs.setZero(res).setNegative(res);
-            instruction.cycles += 2;
-            if (opcode == 0x7E) instruction.cycles = 7;
         }
         break;
     }
     // RTI
-    case 0x40: regs.P = top8(); pop8(); nextUnconditionalAddress = top16(); pop16(); instruction.cycles = 6; break;
+    case 0x40: regs.P = top8(); pop8(); nextUnconditionalAddress = top16(); pop16(); break;
     // RTS
-    case 0x60: nextUnconditionalAddress = top16() + 1; pop16(); instruction.cycles = 6; break;
+    case 0x60: nextUnconditionalAddress = top16() + 1; pop16(); break;
     // SBC
     case 0xE9: case 0xE5: case 0xF5: case 0xED: case 0xFD: case 0xF9: case 0xE1: case 0xF1: {
         u16 res = regs.A - instruction.val8() - !(regs.carry());
@@ -395,8 +384,6 @@ u8 CPU::step() {
     // STA
     case 0x85: case 0x95: case 0x8D: case 0x9D: case 0x99: case 0x81: case 0x91:
         memory.write8(instruction.address, regs.A);
-        if (opcode == 0x9D || opcode == 0x99) instruction.cycles = 5;
-        else if (opcode == 0x91) instruction.cycles = 6;
         break;
     // STX
     case 0x86: case 0x96: case 0x8E:
@@ -420,12 +407,12 @@ u8 CPU::step() {
     case 0x98: regs.A = regs.Y; regs.setZero(regs.A).setNegative(regs.A); break;
     default:
         // unknown opcode is considered to be NOP
-        if(logger) logger->log(LogLevel::Warning, "Unknown opcode " + std::to_string(opcode) + ". Can it be NOP?");
+        if(logger) logger->log(LogLevel::Warning, "Unknown opcode " + std::to_string(instruction.opcode) + ". Can it be NOP?");
         instruction.cycles = 2; break;
     }
     // IT SHOULD BE HERE: trying to not trigger unnecessary read operation
 #ifdef DEBUG
-    if(logger) logger->log(LogLevel::Debug, "[" + std::to_string(instructionCounter) + "][PC: " + numToHexStr(regs.PC, 4) + "]:" + getPrettyInstruction(opcode, addrMode, offset, instruction));
+    if(logger) logger->log(LogLevel::Debug, "[" + std::to_string(instructionCounter) + "][PC: " + numToHexStr(regs.PC, 4) + "]:" + getPrettyInstruction(instruction.opcode, instruction.addrMode, instruction.offset, instruction));
 #endif
     if (nextUnconditionalAddress) regs.PC = nextUnconditionalAddress;
     else if (nextBranchAddress) {
@@ -433,7 +420,7 @@ u8 CPU::step() {
         // add 1 to cycles if nextBranchAddress
         ++instruction.cycles;
         // if this page != nextBranchAddressPage add one more(page crossing)
-        if((offset & 255) != (nextBranchAddress & 255)) ++instruction.cycles;
+        if((instruction.offset & 255) != (nextBranchAddress & 255)) ++instruction.cycles;
     }
     else regs.PC += instruction.length;
     instructionCounter++;
@@ -461,10 +448,13 @@ Serialization::BytesCount CPU::deserialize(const std::string &buf, Serialization
     Accepts function f, that accepts 0 args and returns the number of cycles it took to emulate it.
     It should execute approximately the time of cycle * f return value;
 */
-void CPU::emulateCycles(std::function<int(void)> f) {
+void CPU::emulateCycles(std::function<int(void)> f, bool processEvents) {
     int cycles = f();
     // PPU works on 3*CPUFrequency
-    for(int i = 0; i < cycles * 3; ++i) ppu.emulateCycle();
+    for(int i = 0; i < cycles * 3; ++i) {
+        ppu.emulateCycle();
+    }
+    if(processEvents && !eventQueueEmpty()) _processEventQueue();
 }
 
 void CPU::interrupt(InterruptType intType, Address nextPC) {
@@ -483,10 +473,6 @@ void CPU::_frameSync() {
     auto sleepDuration = std::chrono::nanoseconds(MaxFrameDurationNs - (curTimePoint - syncTimePoint).count());
     std::this_thread::sleep_for(std::chrono::nanoseconds(sleepDuration));
     syncTimePoint = curTimePoint;
-    if(ppu.currentFrame() == 100) {
-        int i = 0;
-        i += 1;
-    }
 }
 
 void CPU::_processEventQueue() {
@@ -518,11 +504,20 @@ void CPU::oamDmaWrite() {
         Address addr = (page << 8) + i;
         // this will make address cyclic(256 bytes)
         u8 oamAddr = startOAMAddr + i;
-        emulateCycles([this, &OAM, i, addr, startOAMAddr, oamAddr]() {
-            OAM[oamAddr] = memory.read8(addr);
+        u8 val = 0;
+        emulateCycles([this, &val, addr] {
+            val = memory.read8(addr);
+            return 1;
+        }, false);
+        emulateCycles([this, &OAM, i, startOAMAddr, oamAddr, val]() {
+            OAM[oamAddr] = val;
+#ifdef DEBUG
+            if (logger) logger->log(LogLevel::Debug, "[OAMDMA][" + std::to_string(instructionCounter) + "]: write of " + std::to_string(val) + " to OAM[" + std::to_string(oamAddr) + "]");
+#endif
             // each such operation consumes 2 CPU cycles
-            return 2;
-        });
+            ++instructionCounter;
+            return 1;
+        }, true);
     }
 }
 
