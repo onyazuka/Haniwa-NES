@@ -4,19 +4,18 @@
 #include <condition_variable>
 #include "nes.hpp"
 
+typedef int64_t i64;
+
 using namespace std;
 
-class GuiSDL : public Observer<PPU> {
+class GuiSDL {
 public:
-    GuiSDL(u16 w, u16 h, PPU* _ppu, NES& _nes);
+    // wndPtr is used for initializaing SDL from an existing window
+    GuiSDL(u16 w, u16 h, PPU* _ppu, NES& _nes, void* wndPtr = nullptr);
     ~GuiSDL();
-    void update(PPU*, int);
-    void eventLoop();
+    void render();
 
 private:
-    void render();
-    void fetchEvents();
-
     SDL_Window* window;
     SDL_Renderer* renderer;
     SDL_Texture* texture;
@@ -24,9 +23,4 @@ private:
     u16 height;
     PPU* ppu;
     NES& nes;
-
-    std::mutex redrawMtx;
-    std::condition_variable eventStepCv;
-
-    bool redraw;
 };

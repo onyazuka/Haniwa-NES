@@ -154,6 +154,8 @@ public:
 
     inline const auto& publicImage() const { return *_lastImage; }
 
+    i16 scanline;
+
 private:
     inline auto& image() { return *_curImage; }
     void preRender();
@@ -226,7 +228,7 @@ private:
 
     // --- private
     u64 frame;
-    i16 scanline;
+
     u16 cycle;      // this scanline cycle
     bool drawDebugGrid;
 

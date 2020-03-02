@@ -1,7 +1,7 @@
+QT += core widgets gui
 TEMPLATE = app
 CONFIG += console c++17
 CONFIG -= app_bundle
-CONFIG -= qt
 
 QMAKE_CXXFLAGS += -std=c++17
 
@@ -23,7 +23,8 @@ SOURCES += main.cpp \
     serialize/serializer.cpp \
     core/input.cpp \
     core/mappers/mapper1.cpp \
-    gui/sdlgui.cpp
+    gui/sdlgui.cpp \
+    gui/qtmainwindow.cpp
 
 HEADERS += \
     core/include/cpu.hpp \
@@ -43,4 +44,5 @@ HEADERS += \
     serialize/serializer.hpp \
     core/include/input.hpp \
     core/include/mappers/mapper1.hpp \
-    gui/sdlgui.hpp
+    gui/sdlgui.hpp \
+    gui/qtmainwindow.hpp
