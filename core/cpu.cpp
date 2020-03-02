@@ -477,7 +477,7 @@ void CPU::_frameSync() {
     auto curTimePoint = std::chrono::high_resolution_clock::now();
     auto sleepDuration = std::chrono::nanoseconds(MaxFrameDurationNs - (curTimePoint - syncTimePoint).count());
     std::this_thread::sleep_for(std::chrono::nanoseconds(sleepDuration));
-    syncTimePoint = curTimePoint;
+    syncTimePoint = std::chrono::high_resolution_clock::now();
 }
 
 void CPU::_processEventQueue() {

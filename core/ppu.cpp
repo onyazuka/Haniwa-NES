@@ -122,7 +122,8 @@ PPURegistersAccess& PPURegistersAccess::writeOamdma(u8 val) {
 
 PPU::PPU(PPUMemory& _memory, EventQueue& _eventQueue, Logger* _logger)
     : Observable(), ppuRegisters{*this}, memory{_memory}, eventQueue{_eventQueue}, logger{_logger}, v{0}, t{0}, x{0}, w{0}, attrDataLatches{}, OAM{},
-      secondaryOAM{}, spritesPatternDataShifts8{}, spriteAttributeBytes{}, spriteXCounters{}, frame{0}, scanline{-1}, cycle{0}, drawDebugGrid{false}, _image{} {}
+      secondaryOAM{}, spritesPatternDataShifts8{}, spriteAttributeBytes{}, spriteXCounters{}, frame{0}, scanline{-1}, cycle{0}, drawDebugGrid{false},
+      _image1{}, _image2{}, _curImage{&_image1}, _lastImage{&_image2}  {}
 
 void PPU::step() {
     switch(scanline) {
@@ -262,6 +263,7 @@ void PPU::postRender() {
 // just turning on vblank on cycle number 1(SECOND cycle)
 void PPU::verticalBlank() {
     if (scanline == 241 && cycle == 1) {
+        _changeActualImage();
         ppuRegisters.writePpustatusVblank(1);
         notify((int)PPUEvent::RerenderMe);
         // nmi request will be send after step is complete
@@ -301,10 +303,10 @@ void PPU::drawBackgroundPixel(u8 xCoord, u8 yCoord) {
             bckgColor = Palette[ppuMem[bckgPaletteAddress]];
             bckgTransparent = !(bckgPaletteAddress & 0b11);
         }
-        _image[(yCoord << 8) + xCoord] = bckgColor;
+        image()[(yCoord << 8) + xCoord] = bckgColor;
     }
     else {
-        _image[(yCoord << 8) + xCoord] = getForcedBlankColor();
+        image()[(yCoord << 8) + xCoord] = getForcedBlankColor();
     }
     // clearing map here - true means transparent
     ppuMap.setSprite(xCoord, true);
@@ -313,7 +315,7 @@ void PPU::drawBackgroundPixel(u8 xCoord, u8 yCoord) {
     // drawing grid for debug
 #ifdef DEBUG
     if(drawDebugGrid && (xCoord % 8 == 0 || yCoord % 8 == 0)) {
-        _image[yCoord * 256 + xCoord] = 0xffffff;
+        image()[yCoord * 256 + xCoord] = 0xffffff;
         return;
     }
 #endif
@@ -330,7 +332,7 @@ void PPU::drawSpritePixel(u8 yCoord) {
     if(spriteXCoord >= 256) return;
     // if not show sprites - return
     if (!(ppuRegisters.ppuRegisters.ppumask & 0b10000 || (spriteXCoord < 8 && ppuRegisters.ppuRegisters.ppumask & 0b100))) {
-        _image[yCoord * 256 + spriteXCoord] = getForcedBlankColor();
+        image()[yCoord * 256 + spriteXCoord] = getForcedBlankColor();
         return;
     }
 
@@ -353,7 +355,7 @@ void PPU::drawSpritePixel(u8 yCoord) {
 
     // if not have any or have a transparent sprite here - override
     if(ppuMap.testSprite(spriteXCoord) && spriteXCoord != 255) {
-        _image[yCoord * 256 + spriteXCoord] = colorMultiplexer(bckgTransparent, _image[(yCoord << 8) + spriteXCoord], spriteTransparent, spriteColor, spritePriority);
+        image()[yCoord * 256 + spriteXCoord] = colorMultiplexer(bckgTransparent, image()[(yCoord << 8) + spriteXCoord], spriteTransparent, spriteColor, spritePriority);
     }
 
     ppuMap.setSprite(spriteXCoord, spriteTransparent);
@@ -605,4 +607,18 @@ void PPU::_spriteEvaluateFedData() {
     spritesPatternDataShifts8[spriteIndex * 2 + 1] = flipHorizontal ? reverseByte(spriteLowPatternByte) : spriteLowPatternByte;
     spriteAttributeBytes[spriteIndex] = secondaryOAM[spriteIndex * 4 + 2];
     spriteXCounters[spriteIndex] = secondaryOAM[spriteIndex * 4 + 3];
+}
+
+/*
+    We store 2 images in memory - so renderer can do its work, while an another frame is preparing.
+*/
+void PPU::_changeActualImage() {
+    if (_curImage == &_image1) {
+        _curImage = &_image2;
+        _lastImage = &_image1;
+    }
+    else {
+        _curImage = &_image1;
+        _lastImage = &_image2;
+    }
 }

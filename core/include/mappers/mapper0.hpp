@@ -16,11 +16,14 @@ class Mapper0 : public MapperInterface {
 public:
     Mapper0(ROM& _rom, Logger* logger=nullptr);
     bool isCorrect() const;
+    // serialization
+    Serialization::BytesCount serialize(std::string &buf);
+    Serialization::BytesCount deserialize(const std::string &buf, Serialization::BytesCount offset);
 private:
     bool checkAddress(Address address) const;
     Address addressFix(Address address) const;
     bool checkCHRAddress(Address address) const;
     Address addressCHRFix(Address address) const;
 
-    u8 sz16kb;
+    const u8 sz16kb;
 };

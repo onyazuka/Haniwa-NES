@@ -24,7 +24,7 @@ private:
     ROM rom;
     StandardController stController1;
     StandardController stController2;
-    Uptr<MapperInterface> mapper;
+    Sptr<MapperInterface> mapper;
     PPUMemory ppuMemory;
     EventQueue eventQueue;
     PPU ppu;

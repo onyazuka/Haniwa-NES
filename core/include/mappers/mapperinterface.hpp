@@ -16,7 +16,7 @@
     I use std::optional to show if request was processed by mapper.
     If not, std::nullopt will be returned and memory should process it itself.
 */
-class MapperInterface {
+class MapperInterface : public Serialization::Serializable, public Serialization::Deserializable {
 public:
     MapperInterface(ROM& _rom, Logger* logger=nullptr);
     virtual ~MapperInterface() {}
@@ -27,6 +27,9 @@ public:
     virtual std::optional<u8> readCHR(Address);
     virtual std::optional<bool> writeCHR(Address offset, u8 val);
     inline Mirroring mirroring() const { return _mirroring; }
+    // serialization
+    virtual Serialization::BytesCount serialize(std::string &buf) = 0;
+    virtual Serialization::BytesCount deserialize(const std::string &buf, Serialization::BytesCount offset) = 0;
 protected:
     virtual bool checkAddress(Address address) const = 0;
     virtual Address addressFix(Address address) const = 0;

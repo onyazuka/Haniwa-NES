@@ -25,7 +25,7 @@ void NES::save(const std::string& fname) {
         throw InvalidFileException{};
     }
     std::string savedData;
-    Serialization::Serializer::serializeAll(savedData, &ppu, &cpu);
+    Serialization::Serializer::serializeAll(savedData, &ppu, &cpu, mapper.get());
     ofs.write(savedData.data(), savedData.size());
 }
 
@@ -45,7 +45,7 @@ void NES::load(const std::string& fname) {
     ifs.seekg(0, std::ios_base::beg);
     data.resize(fsize);
     ifs.read(&(data[0]), fsize);
-    Serialization::Deserializer::deserializeAll(data, 0, &ppu, &cpu);
+    Serialization::Deserializer::deserializeAll(data, 0, &ppu, &cpu, mapper.get());
 }
 
 void NES::waitUntilEventQueueIsEmpty() {

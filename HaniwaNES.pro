@@ -22,7 +22,8 @@ SOURCES += main.cpp \
     core/mappers/mappers.cpp \
     serialize/serializer.cpp \
     core/input.cpp \
-    core/mappers/mapper1.cpp
+    core/mappers/mapper1.cpp \
+    gui/sdlgui.cpp
 
 HEADERS += \
     core/include/cpu.hpp \
@@ -41,4 +42,5 @@ HEADERS += \
     nes.hpp \
     serialize/serializer.hpp \
     core/include/input.hpp \
-    core/include/mappers/mapper1.hpp
+    core/include/mappers/mapper1.hpp \
+    gui/sdlgui.hpp

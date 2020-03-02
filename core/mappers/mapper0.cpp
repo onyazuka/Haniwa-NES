@@ -8,6 +8,10 @@ Mapper0::Mapper0(ROM& _rom, Logger* _logger)
     }
 }
 
+// nothing to save here
+Serialization::BytesCount Mapper0::serialize(std::string&) { return 0; }
+Serialization::BytesCount Mapper0::deserialize(const std::string&, Serialization::BytesCount) { return 0; }
+
 bool Mapper0::isCorrect() const {
     return sz16kb == 1 || sz16kb == 2;
 }

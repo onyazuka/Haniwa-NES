@@ -137,7 +137,6 @@ public:
     inline PPURegistersAccess& accessPPURegisters() { return ppuRegisters; }
     inline auto currentFrame() const { return frame; }
     inline auto& getOAM() { return OAM; }
-    inline const auto& image() const { return _image; }
     void step();
     void emulateCycle();
 
@@ -153,7 +152,10 @@ public:
     Serialization::BytesCount serialize(std::string &buf);
     Serialization::BytesCount deserialize(const std::string &buf, Serialization::BytesCount offset);
 
+    inline const auto& publicImage() const { return *_lastImage; }
+
 private:
+    inline auto& image() { return *_curImage; }
     void preRender();
     void visibleRender();
     void postRender();
@@ -182,6 +184,8 @@ private:
     void _spriteEvaluate();
     void _spriteEvaluateFetchData();
     void _spriteEvaluateFedData();
+
+    void _changeActualImage();
 
     PPURegistersAccess ppuRegisters;
     PPUMemory& memory;
@@ -227,5 +231,8 @@ private:
     bool drawDebugGrid;
 
     // image(in rgb)
-    std::array<u32, 256 * 240> _image;
+    std::array<u32, 256 * 240> _image1;
+    std::array<u32, 256 * 240> _image2;
+    std::array<u32, 256 * 240>* _curImage;
+    std::array<u32, 256 * 240>* _lastImage;
 };

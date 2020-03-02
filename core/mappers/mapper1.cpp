@@ -43,6 +43,15 @@ std::optional<bool> Mapper1::write8(Address offset, u8 val) {
     return true;
 }
 
+// serialization
+Serialization::BytesCount Mapper1::serialize(std::string &buf) {
+    return Serialization::Serializer::serializeAll(buf, &rLoad, &rControl, &rChrBank0, &rChrBank1, &rPrgBank, &prgBank0, &prgBank1, &prgBanks, &chrBank0, &chrBank1);
+}
+
+Serialization::BytesCount Mapper1::deserialize(const std::string &buf, Serialization::BytesCount offset) {
+    return Serialization::Deserializer::deserializeAll(buf, offset, &rLoad, &rControl, &rChrBank0, &rChrBank1, &rPrgBank, &prgBank0, &prgBank1, &prgBanks, &chrBank0, &chrBank1);
+}
+
 bool Mapper1::checkAddress(Address address) const {
     // if PRG RAM is used, read/write should be processed by 'memory'
     return address >= 0x8000;
