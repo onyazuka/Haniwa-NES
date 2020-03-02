@@ -7,15 +7,21 @@ QtMainWindow::QtMainWindow(NES& nes, QWidget *parent) :
     setCentralWidget(renderWidget);
     this->resize(800, 600);
     renderWidget->resize(800, 600);
+    // this is HITSUYOU to prevent flickering (conflict with SDL)
+    renderWidget->setUpdatesEnabled(false);
 }
 
 void QtMainWindow::update(PPU*, int eventType) {
-    if ((eventType == (int)PPUEvent::RerenderMe) && renderer) {
+    if (renderer && (eventType == (int)PPUEvent::RerenderMe)) {
         QApplication::postEvent(this, new RenderEvent(), Qt::HighEventPriority);
     }
 }
 
 void QtMainWindow::keyPressEvent(QKeyEvent *event) {
+    // ignoring duplicates
+    if(event->isAutoRepeat()) {
+        return;
+    }
     switch(event->key()) {
         case Qt::Key_Left: nes.getController(0).updateKey(StandardController::Key::Left, true); break;
         case Qt::Key_Up: nes.getController(0).updateKey(StandardController::Key::Up, true); break;
@@ -30,6 +36,10 @@ void QtMainWindow::keyPressEvent(QKeyEvent *event) {
 }
 
 void QtMainWindow::keyReleaseEvent(QKeyEvent *event) {
+    // ignoring duplicates
+    if(event->isAutoRepeat()) {
+        return;
+    }
     switch(event->key()) {
         case Qt::Key_Left: nes.getController(0).updateKey(StandardController::Key::Left, false); break;
         case Qt::Key_Up: nes.getController(0).updateKey(StandardController::Key::Up, false); break;
@@ -45,6 +55,7 @@ void QtMainWindow::keyReleaseEvent(QKeyEvent *event) {
 
 bool QtMainWindow::event(QEvent* event) {
     switch(event->type()) {
+    // request to SDL to rerender
     case RenderEvent::Type: if(renderer) renderer->render(); return true;
     default: break;
     }

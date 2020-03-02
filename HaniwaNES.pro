@@ -45,4 +45,5 @@ HEADERS += \
     core/include/input.hpp \
     core/include/mappers/mapper1.hpp \
     gui/sdlgui.hpp \
-    gui/qtmainwindow.hpp
+    gui/qtmainwindow.hpp \
+    core/include/framequeue.hpp

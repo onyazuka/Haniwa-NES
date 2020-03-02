@@ -122,8 +122,7 @@ PPURegistersAccess& PPURegistersAccess::writeOamdma(u8 val) {
 
 PPU::PPU(PPUMemory& _memory, EventQueue& _eventQueue, Logger* _logger)
     : Observable(), ppuRegisters{*this}, memory{_memory}, eventQueue{_eventQueue}, logger{_logger}, v{0}, t{0}, x{0}, w{0}, attrDataLatches{}, OAM{},
-      secondaryOAM{}, spritesPatternDataShifts8{}, spriteAttributeBytes{}, spriteXCounters{}, frame{0}, scanline{-1}, cycle{0}, drawDebugGrid{false},
-      _image1{}, _image2{}, _curImage{&_image1}, _lastImage{&_image2}  {}
+      secondaryOAM{}, spritesPatternDataShifts8{}, spriteAttributeBytes{}, spriteXCounters{}, frame{0}, scanline{-1}, cycle{0}, drawDebugGrid{false} {}
 
 void PPU::step() {
     switch(scanline) {
@@ -263,7 +262,8 @@ void PPU::postRender() {
 // just turning on vblank on cycle number 1(SECOND cycle)
 void PPU::verticalBlank() {
     if (scanline == 241 && cycle == 1) {
-        _changeActualImage();
+        frameQueue.pushActiveFrameToQueue();
+        frameQueue.incrementActiveFrame();
         ppuRegisters.writePpustatusVblank(1);
         notify((int)PPUEvent::RerenderMe);
         // nmi request will be send after step is complete
@@ -609,16 +609,3 @@ void PPU::_spriteEvaluateFedData() {
     spriteXCounters[spriteIndex] = secondaryOAM[spriteIndex * 4 + 3];
 }
 
-/*
-    We store 2 images in memory - so renderer can do its work, while an another frame is preparing.
-*/
-void PPU::_changeActualImage() {
-    if (_curImage == &_image1) {
-        _curImage = &_image2;
-        _lastImage = &_image1;
-    }
-    else {
-        _curImage = &_image1;
-        _lastImage = &_image2;
-    }
-}
