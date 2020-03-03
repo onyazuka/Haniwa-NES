@@ -34,6 +34,7 @@ void NESWindow::update(PPU*, int eventType) {
 }
 
 void NESWindow::keyPressEvent(QKeyEvent *event) {
+    if(!nes) return;
     // ignoring duplicates
     if(event->isAutoRepeat()) {
         return;
@@ -52,6 +53,7 @@ void NESWindow::keyPressEvent(QKeyEvent *event) {
 }
 
 void NESWindow::keyReleaseEvent(QKeyEvent *event) {
+    if(!nes) return;
     // ignoring duplicates
     if(event->isAutoRepeat()) {
         return;
