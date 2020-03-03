@@ -7,10 +7,8 @@ HaniwaNES is a cycle-accurate NES/Famicom emulator with GUI written in SDL2 + Qt
 - Qt;
 
 ## Demo
-<img src="./gifs/mario.gif" width="250" height="250">
-<img src="./gifs/excitebike.gif" width="250" height="250">
-<img src="./gifs/drmario.gif" width="250" height="250">
-<img src="./gifs/chipdale.gif" width="250" height="250">
+<img src="./gifs/mario.gif" width="50%" height="50%"><img src="./gifs/excitebike.gif" width="50%" height="50%">
+<img src="./gifs/drmario.gif" width="50%" height="50%"><img src="./gifs/chipdale.gif" width="50%" height="50%">
 
 ## Already done
 - CPU;
