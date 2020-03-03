@@ -20,7 +20,7 @@ int main(int argc, char *argv[])
     GuiSDL* gui = new GuiSDL(256, 240, reinterpret_cast<void*>(mw.getRenderWidget()->winId()));
     mw.setRenderer(gui);
 
-   mw.loadRom("/home/onyazuka/cpp/ProjectsMy/HaniwaNES/roms/Super Mario Bros./Super Mario Bros. (W) [!].nes");
+    //mw.loadRom("/home/onyazuka/cpp/ProjectsMy/HaniwaNES/roms/Super Mario Bros./Super Mario Bros. (W) [!].nes");
 
     a.exec();
 
