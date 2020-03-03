@@ -6,7 +6,7 @@ PPURegisters::PPURegisters()
     : ppuctrl{0}, ppumask{0}, ppustatus{0}, oamaddr{0}, ppuscroll{0}, ppuaddr{0}, ppudata{0} {}
 
 PPURegistersAccess::PPURegistersAccess(PPU &_ppu)
-    : ppu{_ppu} {}
+    : ppu{_ppu}, ppuRegisters{} {}
 
 PPURegistersAccess& PPURegistersAccess::writePpuctrl(u8 val) {
     // if setting NMI flag, and in vblank, generate NMI
@@ -121,8 +121,10 @@ PPURegistersAccess& PPURegistersAccess::writeOamdma(u8 val) {
 }
 
 PPU::PPU(PPUMemory& _memory, EventQueue& _eventQueue, Logger* _logger)
-    : Observable(), ppuRegisters{*this}, memory{_memory}, eventQueue{_eventQueue}, logger{_logger}, v{0}, t{0}, x{0}, w{0}, attrDataLatches{}, OAM{},
-      secondaryOAM{}, spritesPatternDataShifts8{}, spriteAttributeBytes{}, spriteXCounters{}, frame{0}, scanline{-1}, cycle{0}, drawDebugGrid{false} {}
+    : Observable(), ppuRegisters{*this}, memory{_memory}, eventQueue{_eventQueue}, logger{_logger}, v{0}, t{0}, x{0}, w{0},
+      patternDataShifts16{}, attrDataShifts8{}, attrDataLatches{}, ntByte{}, attrByte{}, lowBgByte{}, highBgByte{},
+      OAM{}, secondaryOAM{}, ppuMap{}, spritesPatternDataShifts8{}, spriteAttributeBytes{}, spriteXCounters{}, spriteLowPatternByte{0}, spriteHighPatternByte{0},
+      frame{0}, scanline{-1}, cycle{0}, drawDebugGrid{false}, frameQueue{} {}
 
 void PPU::step() {
     switch(scanline) {
@@ -285,7 +287,7 @@ void PPU::pixelRender() {
 }
 
 void PPU::drawBackgroundPixel(u8 xCoord, u8 yCoord) {
-    static const auto& ppuMem = memory.getMemory();
+    const auto& ppuMem = memory.getMemory();
     // get background pixel
     // keeping in mind fine x scroll
     u16 shiftMask16 = 0b1000000000000000 >> x;
@@ -323,7 +325,7 @@ void PPU::drawBackgroundPixel(u8 xCoord, u8 yCoord) {
 
 // should be called AFTER all background pixels are drawn
 void PPU::drawSpritePixel(u8 yCoord) {
-    static const auto& ppuMem = memory.getMemory();
+    const auto& ppuMem = memory.getMemory();
     u8 spriteToDraw = (cycle - 258) >> 3;
     u8 i = spriteToDraw;
     u8 spriteXOffset = (cycle - 258) & 7;

@@ -5,7 +5,7 @@
 NESHeaderFacade::NESHeaderFacade(NESHeader _nesHeader) : nesHeader{_nesHeader} {}
 
 ROM::ROM(const std::string &fname, Logger* _logger)
-    : logger{_logger}
+    : _header{}, _PRGROM{}, _CHRROM{}, logger{_logger}
 {
     // open file
     std::ifstream romIfs;

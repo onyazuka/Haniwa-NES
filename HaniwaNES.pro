@@ -24,7 +24,7 @@ SOURCES += main.cpp \
     core/input.cpp \
     core/mappers/mapper1.cpp \
     gui/sdlgui.cpp \
-    gui/qtmainwindow.cpp
+    gui/neswindow.cpp
 
 HEADERS += \
     core/include/cpu.hpp \
@@ -45,5 +45,5 @@ HEADERS += \
     core/include/input.hpp \
     core/include/mappers/mapper1.hpp \
     gui/sdlgui.hpp \
-    gui/qtmainwindow.hpp \
-    core/include/framequeue.hpp
+    core/include/framequeue.hpp \
+    gui/neswindow.hpp

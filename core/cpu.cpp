@@ -106,7 +106,7 @@ Instruction makeInstruction(CPU& cpu, AddressationMode addrMode, Address offset,
 }
 
 CPU::CPU(Memory &_memory, PPU& _ppu, EventQueue& _eventQueue, Logger* _logger)
-    : syncTimePoint{}, memory{_memory}, ppu{_ppu}, eventQueue{_eventQueue}, logger{_logger}, instructionCounter{0} {
+    : syncTimePoint{}, _registers{}, memory{_memory}, ppu{_ppu}, eventQueue{_eventQueue}, logger{_logger}, instructionCounter{0} {
     // initializing PC with address from Reset Vector
     registers().PC = memory.read16(ResetVectorAddress);
 }

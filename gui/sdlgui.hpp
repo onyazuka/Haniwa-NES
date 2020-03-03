@@ -11,9 +11,9 @@ using namespace std;
 class GuiSDL {
 public:
     // wndPtr is used for initializaing SDL from an existing window
-    GuiSDL(u16 w, u16 h, PPU* _ppu, NES& _nes, void* wndPtr = nullptr);
+    GuiSDL(u16 w, u16 h, void* wndPtr = nullptr);
     ~GuiSDL();
-    void render();
+    void render(Frame* frame);
 
 private:
     SDL_Window* window;
@@ -21,6 +21,4 @@ private:
     SDL_Texture* texture;
     u16 width;
     u16 height;
-    PPU* ppu;
-    NES& nes;
 };

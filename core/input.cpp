@@ -1,7 +1,7 @@
 #include "core/include/input.hpp"
 
 StandardController::StandardController()
-    : status{0}, keysStatus{0}, _strobe{false} {}
+    : status{0}, keysStatus{0}, _strobe{false}, lowStrobeRead{0} {}
 
  StandardController& StandardController::strobe(bool high) {
      _strobe = high;

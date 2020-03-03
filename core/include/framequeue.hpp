@@ -15,7 +15,7 @@ class FrameQueue {
 public:
     using Frames = std::array<Frame, N>;
     FrameQueue()
-        : activeFrame{0} {}
+        : frames{}, renderFramesQueue{}, activeFrame{0} {}
     inline Frame& getActiveFrame() { return frames[activeFrame]; }
     FrameQueue& incrementActiveFrame() {
         if (++activeFrame == N) activeFrame = 0;
